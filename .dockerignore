@@ -28,3 +28,4 @@ Dockerfile.windows
 docker-compose.windows.yml
 .dockerignore
 *.md
+deploy
