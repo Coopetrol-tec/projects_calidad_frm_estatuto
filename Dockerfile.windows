@@ -9,6 +9,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 `
     PIP_NO_CACHE_DIR=1 `
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# PyMuPDF necesita el Visual C++ Runtime, que Windows Server Core no incluye.
+RUN Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile C:\vc_redist.x64.exe -UseBasicParsing; `
+    Start-Process C:\vc_redist.x64.exe -ArgumentList '/install', '/quiet', '/norestart' -Wait; `
+    Remove-Item C:\vc_redist.x64.exe; `
+    if (-not (Test-Path C:\Windows\System32\msvcp140.dll)) { throw 'No se instaló el Visual C++ Runtime' }
+
 WORKDIR C:\app
 
 COPY requirements.txt .
