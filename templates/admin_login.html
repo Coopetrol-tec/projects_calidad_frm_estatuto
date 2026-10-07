@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Administración · COOPETROL{% endblock %}
+{% block content %}
+<section class="center-page">
+  <article class="light-card admin-login-card">
+    <span class="card-kicker">ACCESO RESTRINGIDO</span>
+    <h1>Panel de administración</h1>
+    <p>Gestione la base de asociados, el Estatuto y las recomendaciones recibidas.</p>
+    <form method="post" class="simple-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <label class="field">
+        <span>Contraseña</span>
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <button class="btn btn--primary btn--full" type="submit">Ingresar</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

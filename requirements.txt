@@ -1,0 +1,8 @@
+Flask>=3.0,<4
+python-dotenv>=1.0,<2
+openpyxl>=3.1,<4
+PyMuPDF>=1.24,<2
+
+psycopg[binary]>=3.2,<4
+psycopg-pool>=3.2,<4
+gunicorn>=22,<24

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Propuesta #{{ proposal.id }} · COOPETROL{% endblock %}
+{% block top_actions %}<a class="header-button" href="{{ url_for('admin_dashboard', section='propuestas') }}">Volver al dashboard</a>{% endblock %}
+{% block content %}
+<section class="page-section">
+  <div class="shell detail-grid">
+    <section class="light-card">
+      <span class="card-kicker">PROPUESTA #{{ proposal.id }}</span><h2>Asociado</h2>
+      <dl class="detail-list"><dt>Cédula</dt><dd>{{ proposal.cedula }}</dd><dt>Nombre</dt><dd>{{ proposal.nombre }}</dd><dt>Fecha</dt><dd>{{ proposal.created_at.replace('T',' ') }}</dd></dl>
+    </section>
+    <section class="light-card">
+      <span class="card-kicker">REFERENCIA</span><h2>Apartado seleccionado</h2>
+      <dl class="detail-list"><dt>Capítulo</dt><dd>{{ proposal.capitulo or '—' }}</dd><dt>Artículo</dt><dd>{{ proposal.articulo or '—' }}</dd><dt>Parágrafo</dt><dd>{{ proposal.paragrafo or '—' }}</dd><dt>Numeral</dt><dd>{{ proposal.numeral or '—' }}</dd><dt>Literal</dt><dd>{{ proposal.literal or '—' }}</dd><dt>Página</dt><dd>{{ proposal.pagina or '—' }}</dd><dt>Tipo</dt><dd>{{ proposal.tipo_cambio }}</dd></dl>
+    </section>
+    <section class="light-card detail-span"><span class="card-kicker">TEXTO IDENTIFICADO</span><h2>Referencia del Estatuto</h2><p class="preserve-lines">{{ proposal.referencia_texto or 'Sin texto capturado.' }}</p></section>
+    <section class="light-card detail-span"><span class="card-kicker">RECOMENDACIÓN</span><h2>Cambio propuesto</h2><p class="preserve-lines">{{ proposal.propuesta }}</p></section>
+  </div>
+</section>
+{% endblock %}

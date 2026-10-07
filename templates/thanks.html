@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Recomendación recibida · COOPETROL{% endblock %}
+{% block top_actions %}
+<form method="post" action="{{ url_for('member_logout') }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <button class="header-button" type="submit">Salir</button>
+</form>
+{% endblock %}
+{% block content %}
+<section class="center-page">
+  <article class="light-card status-card">
+    <div class="status-icon">✓</div>
+    <span class="card-kicker">REGISTRO #{{ proposal_id }}</span>
+    <h1>Recomendación recibida</h1>
+    <p>El registro fue almacenado correctamente. Puede enviar otra propuesta sobre un apartado distinto del Estatuto.</p>
+    <div class="process-note process-note--left">
+      <strong>Nota.</strong> Su solicitud de modificación, eliminación o adición será analizada por el Consejo de Administración.
+    </div>
+    <div class="button-row button-row--center">
+      <a class="btn btn--primary" href="{{ url_for('proposal') }}">Registrar otra recomendación</a>
+      <form method="post" action="{{ url_for('member_logout') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--secondary" type="submit">Finalizar</button>
+      </form>
+    </div>
+  </article>
+</section>
+{% endblock %}

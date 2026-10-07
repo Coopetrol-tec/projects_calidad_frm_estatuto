@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flash_messages.css') }}">
+  <script>window.STATIC_URL = {{ url_for('static', filename='')|tojson }};</script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block site_header %}
+  <header class="site-header">
+    <div class="shell header-row">
+      <a class="brand" href="{{ url_for('index') }}" aria-label="Ir al inicio">
+        <img src="{{ url_for('static', filename='img/coopetrol-logo.png') }}" alt="COOPETROL">
+      </a>
+      <div class="header-actions">{% block top_actions %}{% endblock %}</div>
+    </div>
+  </header>
+  {% endblock %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-layer {% block flash_class %}{% endblock %}" aria-live="polite" aria-atomic="true">
+      {% for category, message in messages %}
+      <div class="flash flash--{{ category }} js-flash" role="status">
+        <span class="flash__message">{{ message }}</span>
+        <button type="button" class="flash__close" aria-label="Cerrar mensaje">&times;</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  <main>{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+
+  <script>
+    (function () {
+      const messages = document.querySelectorAll('.js-flash');
+
+      function closeFlash(element) {
+        if (!element || element.classList.contains('flash--leaving')) return;
+        element.classList.add('flash--leaving');
+        window.setTimeout(function () {
+          element.remove();
+          const layer = document.querySelector('.flash-layer');
+          if (layer && !layer.querySelector('.js-flash')) layer.remove();
+        }, 260);
+      }
+
+      messages.forEach(function (message) {
+        const closeButton = message.querySelector('.flash__close');
+        let timer = window.setTimeout(function () {
+          closeFlash(message);
+        }, 3800);
+
+        if (closeButton) {
+          closeButton.addEventListener('click', function () {
+            window.clearTimeout(timer);
+            closeFlash(message);
+          });
+        }
+
+        message.addEventListener('mouseenter', function () {
+          window.clearTimeout(timer);
+        });
+
+        message.addEventListener('mouseleave', function () {
+          timer = window.setTimeout(function () {
+            closeFlash(message);
+          }, 1800);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

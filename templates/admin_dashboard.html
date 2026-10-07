@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}Dashboard administrativo · COOPETROL{% endblock %}
+{% block body_class %}admin-body{% endblock %}
+{% block site_header %}{% endblock %}
+{% block flash_class %}flash-layer--admin{% endblock %}
+{% block content %}
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="admin-brand">
+      <img src="{{ url_for('static', filename='img/coopetrol-logo.png') }}" alt="COOPETROL">
+      <span>Administración</span>
+    </div>
+
+    <nav class="admin-menu" aria-label="Navegación del panel">
+      <button class="admin-menu__item is-active" type="button" data-admin-target="resumen">
+        <span class="admin-menu__icon">⌂</span><span>Resumen</span>
+      </button>
+      <button class="admin-menu__item" type="button" data-admin-target="asociados">
+        <span class="admin-menu__icon">◎</span><span>Base de asociados</span>
+      </button>
+      <button class="admin-menu__item" type="button" data-admin-target="estatuto">
+        <span class="admin-menu__icon">▤</span><span>Estatuto</span>
+      </button>
+      <button class="admin-menu__item" type="button" data-admin-target="restricciones">
+        <span class="admin-menu__icon">⊘</span><span>Textos no editables</span>
+      </button>
+      <button class="admin-menu__item" type="button" data-admin-target="configuracion">
+        <span class="admin-menu__icon">⚙</span><span>Configuración</span>
+      </button>
+      <button class="admin-menu__item" type="button" data-admin-target="propuestas">
+        <span class="admin-menu__icon">☷</span><span>Propuestas</span>
+      </button>
+      <a class="admin-menu__item" href="{{ url_for('admin_export') }}">
+        <span class="admin-menu__icon">↓</span><span>Exportar Excel</span>
+      </a>
+    </nav>
+
+    <div class="admin-sidebar__bottom">
+      <a class="admin-menu__item admin-menu__item--soft" href="{{ url_for('index') }}" target="_blank" rel="noopener">
+        <span class="admin-menu__icon">↗</span><span>Ver formulario</span>
+      </a>
+      <form method="post" action="{{ url_for('admin_logout') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-menu__item admin-menu__item--danger" type="submit">
+          <span class="admin-menu__icon">⇥</span><span>Cerrar sesión</span>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <section class="admin-content">
+    <header class="admin-topbar">
+      <div>
+        <span class="card-kicker">PANEL DE CONTROL</span>
+        <h1 id="adminPageTitle">Resumen</h1>
+        <p id="adminPageSubtitle">Estado general del proceso de participación estatutaria.</p>
+      </div>
+      <div class="admin-topbar__meta">
+        <span class="database-pill">{{ database_mode }}</span>
+        <span class="active-pill"><i></i> Formulario activo</span>
+      </div>
+    </header>
+
+    <div class="admin-view is-active" data-admin-view="resumen">
+      <div class="kpi-grid">
+        <article class="kpi-card"><span>Asociados</span><strong>{{ stats.associates }}</strong><small>cédulas cargadas</small></article>
+        <article class="kpi-card"><span>Propuestas</span><strong>{{ stats.proposals }}</strong><small>registros recibidos</small></article>
+        <article class="kpi-card"><span>Participantes</span><strong>{{ stats.unique_submitters }}</strong><small>asociados únicos</small></article>
+        <article class="kpi-card"><span>Recurrentes</span><strong>{{ stats.repeat_submitters }}</strong><small>más de un envío</small></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel">
+          <div class="dashboard-panel__head">
+            <div><span class="card-kicker">ESTADO</span><h2>Preparación del formulario</h2></div>
+          </div>
+          <div class="status-list">
+            <button type="button" data-admin-go="asociados" class="status-list__row">
+              <span class="status-check {% if stats.associates %}is-ok{% endif %}">{% if stats.associates %}✓{% else %}!{% endif %}</span>
+              <span><strong>Base de asociados</strong><small>{% if stats.associates %}{{ stats.associates }} cédulas disponibles.{% else %}Pendiente por cargar.{% endif %}</small></span>
+              <b>›</b>
+            </button>
+            <button type="button" data-admin-go="estatuto" class="status-list__row">
+              <span class="status-check {% if statute_available %}is-ok{% endif %}">{% if statute_available %}✓{% else %}!{% endif %}</span>
+              <span><strong>Estatuto</strong><small>{% if statute_available %}{{ article_count }} artículos detectados · {{ structure_count }} zonas seleccionables.{% else %}Documento pendiente.{% endif %}</small></span>
+              <b>›</b>
+            </button>
+            <button type="button" data-admin-go="restricciones" class="status-list__row">
+              <span class="status-check {% if restriction_count %}is-ok{% endif %}">{% if restriction_count %}✓{% else %}!{% endif %}</span>
+              <span><strong>Textos no editables</strong><small>{{ restriction_count }} restricción{% if restriction_count != 1 %}es{% endif %} activa{% if restriction_count != 1 %}s{% endif %}.</small></span>
+              <b>›</b>
+            </button>
+            <button type="button" data-admin-go="configuracion" class="status-list__row">
+              <span class="status-check is-ok">✓</span>
+              <span><strong>Enlaces institucionales</strong><small>Admisión, datos personales y nombre del documento.</small></span>
+              <b>›</b>
+            </button>
+          </div>
+        </section>
+
+        <section class="dashboard-panel dashboard-panel--compact">
+          <span class="card-kicker">ACCESOS RÁPIDOS</span>
+          <h2>Resultados</h2>
+          <div class="quick-links">
+            <button type="button" class="quick-link" data-admin-go="propuestas"><strong>Consultar propuestas</strong><span>Ver los registros recientes</span></button>
+            <a class="quick-link" href="{{ url_for('admin_export') }}"><strong>Descargar Excel</strong><span>Exportar el consolidado</span></a>
+          </div>
+        </section>
+      </div>
+
+      <section class="dashboard-panel">
+        <div class="dashboard-panel__head">
+          <div><span class="card-kicker">ACTIVIDAD RECIENTE</span><h2>Últimas recomendaciones</h2></div>
+          <button class="text-button" type="button" data-admin-go="propuestas">Ver todas →</button>
+        </div>
+        {% if recent %}
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead><tr><th>ID</th><th>Asociado</th><th>Referencia</th><th>Tipo</th><th>Fecha</th></tr></thead>
+            <tbody>
+            {% for row in recent %}
+              <tr>
+                <td><a href="{{ url_for('admin_proposal_detail', proposal_id=row.id) }}">#{{ row.id }}</a></td>
+                <td><strong>{{ row.nombre }}</strong><small>{{ row.cedula }}</small></td>
+                <td>{% if row.articulo %}Artículo {{ row.articulo }}{% else %}—{% endif %}{% if row.paragrafo %}<small>Parágrafo {{ row.paragrafo }}</small>{% endif %}</td>
+                <td><span class="table-tag">{{ row.tipo_cambio }}</span></td>
+                <td>{{ row.created_at[:10] }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="empty-box">Aún no hay recomendaciones registradas.</div>{% endif %}
+      </section>
+    </div>
+
+    <div class="admin-view" data-admin-view="asociados">
+      <section class="dashboard-panel form-panel-admin">
+        <div class="dashboard-panel__head dashboard-panel__head--border">
+          <div><span class="card-kicker">VALIDACIÓN DE INGRESO</span><h2>Base de asociados</h2><p>Cargue la base autorizada con cédula, nombre y fecha de expedición.</p></div>
+          <span class="count-pill">{{ stats.associates }} registros</span>
+        </div>
+        <form method="post" action="{{ url_for('admin_load_associates') }}" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Archivo de asociados</span><input type="file" name="base_asociados" accept=".csv,.xlsx,.xlsm" required><small>El archivo debe contener las columnas “cedula”, “nombre” y “fecha_expedicion”.</small></label>
+          <label class="field"><span>Modo de carga</span><select name="modo"><option value="reemplazar">Reemplazar la base vigente</option><option value="agregar">Agregar a la base actual</option></select></label>
+          <div><button class="btn btn--primary" type="submit">Cargar base</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="admin-view" data-admin-view="estatuto">
+      <section class="dashboard-panel form-panel-admin">
+        <div class="dashboard-panel__head dashboard-panel__head--border">
+          <div><span class="card-kicker">DOCUMENTO OFICIAL</span><h2>Estatuto</h2><p>Este es el PDF que consulta el asociado y sobre el que hace clic para seleccionar la referencia.</p></div>
+          <span class="count-pill {% if statute_available %}is-success{% endif %}">{% if statute_available %}Disponible{% else %}Pendiente{% endif %}</span>
+        </div>
+        {% if statute_available %}
+        <div class="document-state">
+          <span class="pdf-icon">PDF</span>
+          <span><strong>{{ settings.statute_title }}</strong><small>{{ article_count }} artículos detectados · {{ structure_count }} zonas seleccionables.</small></span>
+          <a class="btn btn--outline btn--small" href="{{ url_for('statute_pdf') }}" target="_blank" rel="noopener">Ver PDF</a>
+        </div>
+        {% endif %}
+        <form method="post" action="{{ url_for('admin_load_statute') }}" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Reemplazar documento</span><input type="file" name="estatuto" accept=".pdf,application/pdf" required><small>Al cargarlo, el sistema regenerará automáticamente las zonas seleccionables.</small></label>
+          <div><button class="btn btn--primary" type="submit">Actualizar Estatuto</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="admin-view" data-admin-view="restricciones">
+      <section class="dashboard-panel restriction-admin-panel">
+        <div class="dashboard-panel__head dashboard-panel__head--border">
+          <div>
+            <span class="card-kicker">CONTROL DE EDICIÓN</span>
+            <h2>Textos no editables</h2>
+            <p>Seleccione directamente sobre el Estatuto los apartados que no deben aceptar recomendaciones.</p>
+          </div>
+          <span class="count-pill">{{ restriction_count }} activa{% if restriction_count != 1 %}s{% endif %}</span>
+        </div>
+
+        {% if statute_data.pages %}
+        <div class="restriction-admin-layout">
+          <section class="restriction-document-column">
+            <div class="restriction-help">
+              <strong>Cómo configurarlo</strong>
+              <span>Los textos en rojo ya están bloqueados. Haga clic sobre cualquier capítulo, artículo, parágrafo, numeral o literal para seleccionarlo y guardarlo como no editable.</span>
+            </div>
+            <div class="document-tools">
+              <input id="adminStatuteSearch" type="search" placeholder="Buscar artículo o palabra clave…" autocomplete="off">
+              <div id="adminStatuteSearchResults" class="search-results"></div>
+            </div>
+            <div id="adminDocumentViewer" class="document-viewer restriction-document-viewer" aria-label="Configurador de restricciones del Estatuto"></div>
+          </section>
+
+          <aside class="restriction-config-column">
+            <form method="post" action="{{ url_for('admin_save_restriction') }}" id="restrictionForm" class="restriction-save-card">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" id="restrictionCapitulo" name="capitulo">
+              <input type="hidden" id="restrictionArticulo" name="articulo">
+              <input type="hidden" id="restrictionParagrafo" name="paragrafo">
+              <input type="hidden" id="restrictionNumeral" name="numeral">
+              <input type="hidden" id="restrictionLiteral" name="literal">
+
+              <div class="selection-box" id="adminRestrictionSelection">
+                <span>Texto seleccionado</span>
+                <strong id="adminRestrictionTitle">Seleccione un apartado en el documento</strong>
+                <p id="adminRestrictionSnippet">La referencia seleccionada aparecerá aquí antes de guardarla.</p>
+              </div>
+
+              <label class="field">
+                <span>Mensaje para el asociado</span>
+                <textarea name="mensaje" id="restrictionMessage" rows="3" maxlength="300">Este texto no está habilitado para cambios.</textarea>
+                <small>Este mensaje aparecerá cuando el asociado intente seleccionar el texto bloqueado.</small>
+              </label>
+
+              <button class="btn btn--primary btn--full" id="saveRestrictionButton" type="submit" disabled>Guardar como no editable</button>
+            </form>
+
+          </aside>
+        </div>
+
+        <!-- TABLA INFERIOR DE RESTRICCIONES -->
+        <section class="restriction-table-card">
+          <div class="restriction-table-card__head">
+            <div>
+              <span class="card-kicker">CONFIGURADOS</span>
+              <h3>Restricciones activas</h3>
+              <p>Consulte, ubique o vuelva a habilitar los apartados que actualmente no aceptan recomendaciones.</p>
+            </div>
+            <span class="count-pill">{{ restriction_count }} activa{% if restriction_count != 1 %}s{% endif %}</span>
+          </div>
+
+          {% if statute_restrictions %}
+          <div class="restriction-table-wrap">
+            <table class="restriction-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Capítulo</th>
+                  <th>Artículo</th>
+                  <th>Parágrafo</th>
+                  <th>Numeral</th>
+                  <th>Literal</th>
+                  <th>Mensaje para el asociado</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for rule in statute_restrictions %}
+                <tr data-restriction-index="{{ loop.index0 }}">
+                  <td class="restriction-table__number">{{ loop.index }}</td>
+                  <td class="restriction-table__chapter">{{ rule.capitulo or '—' }}</td>
+                  <td>{% if rule.articulo %}Artículo {{ rule.articulo }}{% else %}—{% endif %}</td>
+                  <td>{% if rule.paragrafo %}Parágrafo {{ rule.paragrafo }}{% else %}—{% endif %}</td>
+                  <td>{% if rule.numeral %}Numeral {{ rule.numeral }}{% else %}—{% endif %}</td>
+                  <td>{% if rule.literal %}Literal {{ rule.literal }}{% else %}—{% endif %}</td>
+                  <td class="restriction-table__message">{{ rule.mensaje }}</td>
+                  <td><span class="restriction-status">No editable</span></td>
+                  <td>
+                    <div class="restriction-table__actions">
+                      <button type="button" class="restriction-locate-button" data-focus-restriction="{{ loop.index0 }}">Ubicar</button>
+                      <form method="post" action="{{ url_for('admin_enable_restriction', restriction_id=rule.id) }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="restriction-enable-button" title="Volver a habilitar este texto">Habilitar</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty-box restriction-table-empty">No hay textos bloqueados. Todos los apartados están habilitados para recibir recomendaciones.</div>
+          {% endif %}
+        </section>
+        {% else %}
+        <div class="empty-box">Debe cargar y procesar el Estatuto antes de configurar restricciones.</div>
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="admin-view" data-admin-view="configuracion">
+      <section class="dashboard-panel form-panel-admin">
+        <div class="dashboard-panel__head dashboard-panel__head--border">
+          <div><span class="card-kicker">CONFIGURACIÓN GENERAL</span><h2>Enlaces y textos</h2><p>Solo se muestran los parámetros institucionales necesarios para el formulario.</p></div>
+        </div>
+        <form method="post" action="{{ url_for('admin_settings') }}" class="admin-form">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Enlace de admisión en línea</span><input type="url" name="admission_url" value="{{ settings.admission_url }}" required></label>
+          <label class="field"><span>Enlace de habeas data / tratamiento de datos</span><input type="url" name="privacy_url" value="{{ settings.privacy_url }}" required></label>
+          <label class="field"><span>Nombre visible del documento</span><input name="statute_title" value="{{ settings.statute_title }}" required></label>
+          <div><button class="btn btn--primary" type="submit">Guardar cambios</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="admin-view" data-admin-view="propuestas">
+      <section class="dashboard-panel">
+        <div class="dashboard-panel__head dashboard-panel__head--border">
+          <div><span class="card-kicker">REGISTROS RECIBIDOS</span><h2>Propuestas</h2><p>Filtre rápidamente los últimos registros o abra el detalle de una propuesta.</p></div>
+          <div class="button-row"><a class="btn btn--outline btn--small" href="{{ url_for('admin_export') }}">Exportar Excel</a><a class="btn btn--secondary btn--small" href="{{ url_for('admin_proposals') }}">Búsqueda avanzada</a></div>
+        </div>
+        <input id="dashboardProposalSearch" class="table-search" type="search" placeholder="Filtrar por nombre, cédula, artículo o tipo…">
+        {% if dashboard_proposals %}
+        <div class="table-wrap">
+          <table class="clean-table" id="dashboardProposalsTable">
+            <thead><tr><th>ID</th><th>Asociado</th><th>Referencia</th><th>Tipo</th><th>Fecha</th></tr></thead>
+            <tbody>
+            {% for row in dashboard_proposals %}
+              <tr>
+                <td><a href="{{ url_for('admin_proposal_detail', proposal_id=row.id) }}">#{{ row.id }}</a></td>
+                <td><strong>{{ row.nombre }}</strong><small>{{ row.cedula }}</small></td>
+                <td>{% if row.articulo %}Artículo {{ row.articulo }}{% else %}—{% endif %}{% if row.paragrafo %}<small>Parágrafo {{ row.paragrafo }}</small>{% endif %}</td>
+                <td><span class="table-tag">{{ row.tipo_cambio }}</span></td>
+                <td>{{ row.created_at[:10] }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="empty-box">Aún no hay recomendaciones registradas.</div>{% endif %}
+      </section>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+window.ADMIN_STATUTE_DATA = {{ statute_data|tojson }};
+window.ADMIN_STATUTE_RESTRICTIONS = {{ statute_restrictions|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_restrictions.js') }}?v=4"></script>
+{% endblock %}

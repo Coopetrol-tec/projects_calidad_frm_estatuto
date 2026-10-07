@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Registrar recomendación · COOPETROL{% endblock %}
+{% block top_actions %}
+<form method="post" action="{{ url_for('member_logout') }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <button class="header-button" type="submit">Salir</button>
+</form>
+{% endblock %}
+{% block content %}
+<section class="compact-hero compact-hero--proposal">
+  <div class="shell compact-hero__row">
+    <div>
+      <span class="hero-badge">ASOCIADO VALIDADO</span>
+      <h1>Seleccione el apartado que desea ajustar</h1>
+      <p><strong>{{ nombre }}</strong> · Documento {{ cedula }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="public-content public-content--overlap-small proposal-page">
+  <div class="shell shell--proposal-wide">
+    <section class="light-card proposal-container proposal-container--viewer">
+      <div class="stepper" aria-label="Progreso">
+        <div class="stepper-item is-done"><span>1</span><strong>Validación</strong></div>
+        <div class="stepper-line"></div>
+        <div class="stepper-item is-active"><span>2</span><strong>Seleccione</strong></div>
+        <div class="stepper-line"></div>
+        <div class="stepper-item"><span>3</span><strong>Proponga</strong></div>
+      </div>
+
+      <div id="previousCountNotice" class="inline-notice{% if not previous_count %} is-hidden{% endif %}">
+        Ya ha registrado <strong id="previousCountValue">{{ previous_count }}</strong>
+        recomendación<span id="previousCountPlural">{% if previous_count != 1 %}es{% endif %}</span>.
+        Puede enviar una nueva sin reemplazar las anteriores.
+      </div>
+
+      <div class="proposal-layout proposal-layout--viewer-only">
+        <section class="document-column document-column--wide">
+          <div class="panel-head">
+            <div>
+              <span class="card-kicker">2. CONSULTE EL ESTATUTO</span>
+              <h2>{{ settings.statute_title }}</h2>
+              <p>Use el buscador para ubicar el apartado dentro del Estatuto. El formulario se abrirá únicamente cuando haga clic directamente sobre el texto del documento.</p>
+            </div>
+            {% if statute_available %}
+            <a class="btn btn--outline btn--small" href="{{ url_for('statute_pdf') }}" target="_blank" rel="noopener">Abrir PDF</a>
+            {% endif %}
+          </div>
+
+          {% if statute_data.pages %}
+          <div class="document-tools">
+            <input id="statuteSearch" type="search" placeholder="Buscar artículo o palabra clave…" autocomplete="off">
+            <div id="statuteSearchResults" class="search-results"></div>
+          </div>
+
+          <div id="viewerFeedback" class="viewer-feedback" role="status" aria-live="polite" hidden></div>
+          <div id="documentViewer" class="document-viewer document-viewer--expanded" aria-label="Visor interactivo del Estatuto"></div>
+          {% else %}
+          <div class="empty-box">El Estatuto todavía no está procesado. Comuníquese con el administrador.</div>
+          {% endif %}
+        </section>
+      </div>
+    </section>
+  </div>
+</section>
+
+<div class="proposal-modal" id="proposalModal" aria-hidden="true">
+  <div class="proposal-modal__backdrop" data-modal-close></div>
+  <section class="proposal-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="proposalModalTitle">
+    <button class="proposal-modal__close" type="button" aria-label="Cerrar" data-modal-close>×</button>
+
+    <div id="proposalFormState">
+      <div class="proposal-modal__header">
+        <span class="card-kicker">3. REGISTRE SU RECOMENDACIÓN</span>
+        <h2 id="proposalModalTitle">Propuesta de ajuste</h2>
+        <p>Complete la solicitud para el apartado seleccionado.</p>
+      </div>
+
+      <form method="post" id="proposalForm" class="simple-form proposal-modal__form" action="{{ url_for('proposal') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" id="capitulo" name="capitulo" value="{{ form.get('capitulo', '') }}">
+        <input type="hidden" id="articulo" name="articulo" value="{{ form.get('articulo', '') }}">
+        <input type="hidden" id="paragrafo" name="paragrafo" value="{{ form.get('paragrafo', '') }}">
+        <input type="hidden" id="numeral" name="numeral" value="{{ form.get('numeral', '') }}">
+        <input type="hidden" id="literal" name="literal" value="{{ form.get('literal', '') }}">
+        <input type="hidden" id="pagina" name="pagina" value="{{ form.get('pagina', '') }}">
+        <input type="hidden" id="referencia_texto" name="referencia_texto" value="{{ form.get('referencia_texto', '') }}">
+
+        <div class="selection-box" id="selectionBox">
+          <span>Apartado seleccionado</span>
+          <strong id="selectionTitle">Seleccione un apartado en el documento</strong>
+          <p id="selectionSnippet">La referencia seleccionada aparecerá aquí.</p>
+        </div>
+
+        <div id="proposalErrors" class="proposal-errors" role="alert" hidden></div>
+
+        <label class="field">
+          <span>Tipo de solicitud *</span>
+          <select name="tipo_cambio" id="tipoCambio" required>
+            <option value="">Seleccione una opción</option>
+            {% for item in ["Modificación", "Adición", "Eliminación"] %}
+            <option value="{{ item }}" {% if form.get('tipo_cambio') == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>¿Qué cambio desea realizar? *</span>
+          <textarea name="propuesta" id="propuestaTexto" rows="8" minlength="10" required placeholder="Describa el texto que propone modificar, adicionar o eliminar.">{{ form.get('propuesta', '') }}</textarea>
+        </label>
+
+        <div class="process-note">
+          <strong>Nota.</strong> Su solicitud de modificación, eliminación o adición será analizada por el Consejo de Administración.
+        </div>
+
+        <div class="proposal-modal__actions">
+          <button class="btn btn--outline" type="button" data-modal-close>Cancelar</button>
+          <button class="btn btn--primary btn--large" id="submitProposalButton" type="submit">Enviar recomendación</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="proposalSuccessState" class="proposal-success" hidden>
+      <div class="proposal-success__icon">✓</div>
+      <span class="card-kicker">RECOMENDACIÓN REGISTRADA</span>
+      <h2>Su recomendación fue enviada correctamente</h2>
+      <p>Registro <strong id="successProposalId">—</strong>. Puede registrar otra recomendación sin volver a validar sus datos.</p>
+      <div class="proposal-modal__actions proposal-modal__actions--center">
+        <button class="btn btn--primary btn--large" id="newProposalButton" type="button">Registrar otra recomendación</button>
+        <form method="post" action="{{ url_for('member_logout') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn--outline" type="submit">Finalizar registro</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+window.STATUTE_DATA = {{ statute_data|tojson }};
+window.STATUTE_RESTRICTIONS = {{ statute_restrictions|tojson }};
+window.STATUTE_INITIAL = {{ {
+  'capitulo': form.get('capitulo', ''),
+  'articulo': form.get('articulo', ''),
+  'paragrafo': form.get('paragrafo', ''),
+  'numeral': form.get('numeral', ''),
+  'literal': form.get('literal', ''),
+  'pagina': form.get('pagina', ''),
+  'referencia_texto': form.get('referencia_texto', '')
+}|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/proposal.js') }}?v=7"></script>
+{% endblock %}

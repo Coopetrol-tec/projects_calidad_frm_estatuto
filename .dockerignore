@@ -1,0 +1,28 @@
+.git
+.gitignore
+.vscode
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+
+# Secretos: se inyectan en tiempo de ejecución, nunca dentro de la imagen.
+.env
+.env.*
+!.env.production.example
+
+# Base local de pruebas
+instance/*.db
+
+# Scripts de parcheo del servidor anterior
+ajuste.py
+seguridad.py
+
+# Archivos de despliegue
+certs
+nginx
+docker-compose.yml
+Dockerfile
+.dockerignore
+*.md

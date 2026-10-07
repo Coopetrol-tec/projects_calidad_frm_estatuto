@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Validación de asociado · COOPETROL{% endblock %}
+{% block content %}
+<section class="center-page">
+  <article class="light-card status-card">
+    <div class="status-icon status-icon--warning">!</div>
+    <span class="card-kicker">VALIDACIÓN</span>
+    <h1>Usted no figura como asociado</h1>
+    <p>El documento <strong>{{ cedula }}</strong> no se encontró en la base habilitada para este proceso.</p>
+    <div class="button-row button-row--center">
+      <a class="btn btn--primary" href="{{ settings.admission_url }}" target="_blank" rel="noopener">Ir a admisión en línea</a>
+      <a class="btn btn--secondary" href="{{ url_for('index') }}">Intentar nuevamente</a>
+    </div>
+  </article>
+</section>
+{% endblock %}

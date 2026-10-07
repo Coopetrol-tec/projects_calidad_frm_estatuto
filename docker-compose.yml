@@ -1,0 +1,49 @@
+name: estatutos
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      TZ: America/Bogota
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    image: coopetrol/estatutos:latest
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Volúmenes con nombre: en el primer arranque Docker copia el contenido de la
+      # imagen (PDF del Estatuto e imágenes ya generadas) y luego lo conserva.
+      - estatuto_data:/app/data
+      - estatuto_pages:/app/static/generated/pages
+      - estatuto_instance:/app/instance
+
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "8546:8546"
+    volumes:
+      - ./nginx/estatutos.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+
+volumes:
+  pgdata:
+  estatuto_data:
+  estatuto_pages:
+  estatuto_instance:

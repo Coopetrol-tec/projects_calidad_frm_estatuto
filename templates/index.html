@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Recomendaciones al Estatuto · COOPETROL{% endblock %}
+{% block content %}
+<section class="public-hero public-hero--entry">
+  <div class="shell public-hero__content">
+    <span class="hero-badge">PARTICIPACIÓN ESTATUTARIA</span>
+    <h1>Recomendaciones de ajuste al Estatuto</h1>
+    <p>Valide su condición de asociado para consultar el Estatuto, seleccionar el apartado que desea ajustar y registrar su recomendación.</p>
+  </div>
+</section>
+
+<section class="public-content public-content--entry">
+  <div class="shell">
+    <section class="light-card validation-card validation-card--entry">
+      <span class="card-kicker">FORMULARIO</span>
+      <div class="section-title-row">
+        <span class="step-number">1</span>
+        <div>
+          <h2>Valide su condición de asociado</h2>
+          <p>Ingrese su número de documento para continuar.</p>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('validate_member') }}" class="simple-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="validation-row">
+          <label class="field">
+            <span>Número de documento</span>
+            <input name="cedula" inputmode="numeric" autocomplete="off" placeholder="Ej. 123456789" required>
+          </label>
+          <label class="field">
+            <span>Fecha de expedición</span>
+            <input type="date" name="fecha_expedicion" autocomplete="off" required>
+          </label>
+          <button class="btn btn--dark" type="submit">Validar</button>
+        </div>
+
+        <label class="consent-row">
+          <input type="checkbox" name="consent" required>
+          <span>
+            Autorizo el tratamiento de mis datos personales de acuerdo con la
+            <a href="{{ settings.privacy_url }}" target="_blank" rel="noopener">política de tratamiento de datos</a>.
+          </span>
+        </label>
+      </form>
+
+      <div class="validation-next-step">
+        <span class="validation-next-step__icon">→</span>
+        <p>Después de validar su cédula podrá consultar el Estatuto y seleccionar directamente el apartado sobre el cual desea presentar su recomendación.</p>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}
