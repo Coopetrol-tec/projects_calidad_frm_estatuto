@@ -119,32 +119,66 @@ servidor, siempre que Docker esté configurado para iniciar con el sistema.
 > Nota: al actualizar la imagen, el PDF y las imágenes del Estatuto **no** se sobrescriben, porque
 > viven en volúmenes. Para cambiar el Estatuto use el panel administrativo.
 
-## Variante para contenedores Windows (servidor actual)
+## Producción actual: contenedor Windows + Tomcat
 
-El servidor de producción (Windows Server 2025 en VMware, Docker Engine con `OSType: windows`)
-no puede ejecutar las imágenes Linux, y el puerto 8546 ya lo atiende otro servicio con el
-certificado de `sistemas.coopetrol.coop`. Para ese caso se usa:
+Así está desplegado hoy. El servidor es Windows Server 2025 en VMware, con Docker Engine en modo
+contenedores Windows, sin Docker Compose ni WSL. El puerto 8546 lo atiende **Tomcat 9**
+(`C:\prod\tomcat9java8\apache-tomcat-9.0.85`), que comparte con otros sistemas.
 
-| Archivo | Uso |
-|---|---|
-| `Dockerfile.windows` | Imagen `python:3.12-windowsservercore-ltsc2025` con Waitress |
-| `docker-compose.windows.yml` | Un solo servicio, publicado en el puerto local **8547** |
-| `.env.production.windows.example` | Variables (SQLite por defecto) |
-| `serve.py` | Arranca Waitress con el prefijo `/estatutos` |
-
-```powershell
-Copy-Item .env.production.windows.example .env.production
-notepad .env.production
-docker compose -f docker-compose.windows.yml up -d --build
-docker compose -f docker-compose.windows.yml ps
-Invoke-WebRequest http://localhost:8547/estatutos/ -UseBasicParsing | Select-Object StatusCode
+```text
+Internet ─HTTPS:8546─► Tomcat 9 ─/estatutos/*─► estatutos.war (proxy) ─► 127.0.0.1:8547 ─► contenedor "estatutos" (Waitress)
 ```
 
-Luego, en el proxy que ya escucha en el 8546, se agrega una regla que reenvíe `/estatutos/` a
-`http://127.0.0.1:8547/estatutos/` conservando el host y con `X-Forwarded-Proto: https`.
-El puerto 8547 **no** se abre en el firewall.
+| Elemento | Detalle |
+|---|---|
+| Código | `C:\Users\Administrador\Documents\estatutos\Frm_Estatuto` (clonado por SSH con la deploy key `.ssh\id_estatutos`) |
+| Imagen | `coopetrol/estatutos:windows`, construida con `Dockerfile.windows` |
+| Contenedor | `estatutos`, puerto local **8547** (no se abre en el firewall) |
+| Base de datos | SQLite en el volumen `estatuto_instance` |
+| Variables | `.env.production`, solo en el servidor. El hash de la contraseña va **sin comillas** |
+| Proxy | `deploy/tomcat/estatutos.war` copiado en `webapps` de Tomcat |
 
-Actualizar: `git pull` y `docker compose -f docker-compose.windows.yml up -d --build`.
+### Instalación (ya realizada)
+
+```powershell
+Copy-Item .env.production.windows.example .env.production   # y completar valores
+docker build -f Dockerfile.windows -t coopetrol/estatutos:windows .
+docker run -d --name estatutos --restart unless-stopped --isolation process `
+  --env-file .env.production -p 8547:8000 `
+  -v estatuto_data:C:\app\data `
+  -v estatuto_pages:C:\app\static\generated\pages `
+  -v estatuto_instance:C:\app\instance `
+  coopetrol/estatutos:windows
+Copy-Item deploy\tomcat\estatutos.war C:\prod\tomcat9java8\apache-tomcat-9.0.85\webapps\
+```
+
+### Actualizar la aplicación
+
+```powershell
+cd C:\Users\Administrador\Documents\estatutos\Frm_Estatuto
+git pull
+docker build -f Dockerfile.windows -t coopetrol/estatutos:windows .
+docker rm -f estatutos
+# repetir el "docker run" de arriba
+```
+
+Los datos (base, PDF del Estatuto e imágenes) están en los volúmenes `estatuto_*` y no se pierden.
+
+### Respaldo de la base de datos
+
+```powershell
+New-Item -ItemType Directory -Force C:\respaldos | Out-Null
+docker cp estatutos:C:\app\instance\app.db "C:\respaldos\estatutos_$(Get-Date -Format yyyyMMdd_HHmm).db"
+```
+
+### Diagnóstico
+
+| Síntoma | Revisar |
+|---|---|
+| La URL da error 500/502 de Tomcat | `docker ps --filter name=estatutos` y `docker logs estatutos` |
+| `localhost:8547/estatutos/` no responde | `docker logs estatutos` |
+| `/estatutos` da 404 de Tomcat | Que exista `webapps\estatutos.war`, y revisar `logs\catalina.*.log` |
+| Retirar la publicación | Borrar `webapps\estatutos.war`; Tomcat la retira sola |
 
 ## Alternativa: usar IIS como proxy en lugar de nginx
 
