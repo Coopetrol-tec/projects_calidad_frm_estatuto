@@ -2,6 +2,9 @@
 
 URL final: **https://sistemas.coopetrol.coop:8546/estatutos**
 
+> **Producción actual:** ver la sección *Producción actual: contenedor Windows + Tomcat*. El resto
+> de este documento describe la variante con contenedores Linux (nginx + PostgreSQL).
+
 ## Arquitectura
 
 ```text
