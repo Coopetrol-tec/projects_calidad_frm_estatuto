@@ -1,0 +1,32 @@
+# Despliegue en Windows Server 2025 con Docker Engine (contenedores Windows).
+# Uso: docker compose -f docker-compose.windows.yml up -d --build
+name: estatutos
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows
+    image: coopetrol/estatutos:windows
+    isolation: process
+    restart: unless-stopped
+    env_file: .env.production
+    ports:
+      # Solo para el proxy local que ya atiende https://sistemas.coopetrol.coop:8546.
+      # No abrir este puerto en el firewall.
+      - "8547:8000"
+    volumes:
+      - type: volume
+        source: estatuto_data
+        target: 'C:\app\data'
+      - type: volume
+        source: estatuto_pages
+        target: 'C:\app\static\generated\pages'
+      - type: volume
+        source: estatuto_instance
+        target: 'C:\app\instance'
+
+volumes:
+  estatuto_data:
+  estatuto_pages:
+  estatuto_instance:

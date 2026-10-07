@@ -116,6 +116,33 @@ servidor, siempre que Docker esté configurado para iniciar con el sistema.
 > Nota: al actualizar la imagen, el PDF y las imágenes del Estatuto **no** se sobrescriben, porque
 > viven en volúmenes. Para cambiar el Estatuto use el panel administrativo.
 
+## Variante para contenedores Windows (servidor actual)
+
+El servidor de producción (Windows Server 2025 en VMware, Docker Engine con `OSType: windows`)
+no puede ejecutar las imágenes Linux, y el puerto 8546 ya lo atiende otro servicio con el
+certificado de `sistemas.coopetrol.coop`. Para ese caso se usa:
+
+| Archivo | Uso |
+|---|---|
+| `Dockerfile.windows` | Imagen `python:3.12-windowsservercore-ltsc2025` con Waitress |
+| `docker-compose.windows.yml` | Un solo servicio, publicado en el puerto local **8547** |
+| `.env.production.windows.example` | Variables (SQLite por defecto) |
+| `serve.py` | Arranca Waitress con el prefijo `/estatutos` |
+
+```powershell
+Copy-Item .env.production.windows.example .env.production
+notepad .env.production
+docker compose -f docker-compose.windows.yml up -d --build
+docker compose -f docker-compose.windows.yml ps
+Invoke-WebRequest http://localhost:8547/estatutos/ -UseBasicParsing | Select-Object StatusCode
+```
+
+Luego, en el proxy que ya escucha en el 8546, se agrega una regla que reenvíe `/estatutos/` a
+`http://127.0.0.1:8547/estatutos/` conservando el host y con `X-Forwarded-Proto: https`.
+El puerto 8547 **no** se abre en el firewall.
+
+Actualizar: `git pull` y `docker compose -f docker-compose.windows.yml up -d --build`.
+
 ## Alternativa: usar IIS como proxy en lugar de nginx
 
 Si el puerto 8546 ya lo administra IIS con el certificado instalado, elimine el servicio `proxy`,

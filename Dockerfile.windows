@@ -1,0 +1,39 @@
+# escape=`
+# Imagen para Docker Engine en Windows Server 2025 (contenedores Windows).
+FROM python:3.12-windowsservercore-ltsc2025
+
+SHELL ["powershell", "-NoProfile", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+ENV PYTHONDONTWRITEBYTECODE=1 `
+    PYTHONUNBUFFERED=1 `
+    PIP_NO_CACHE_DIR=1 `
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR C:\app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+# En Windows un volumen solo se puede montar sobre una carpeta vacía: el contenido
+# inicial (PDF del Estatuto e imágenes) se mueve a C:\app\seed y serve.py lo copia
+# al volumen en el primer arranque.
+RUN New-Item -ItemType Directory -Force C:\app\seed\data, C:\app\seed\pages | Out-Null; `
+    Get-ChildItem C:\app\data | Move-Item -Destination C:\app\seed\data; `
+    Get-ChildItem C:\app\static\generated\pages | Move-Item -Destination C:\app\seed\pages; `
+    New-Item -ItemType Directory -Force C:\app\instance | Out-Null; `
+    Get-ChildItem C:\app\instance | Remove-Item -Recurse -Force
+
+ENV URL_PREFIX=/estatutos `
+    APPLICATION_ROOT=/estatutos `
+    BEHIND_PROXY=true `
+    FLASK_DEBUG=false `
+    PORT=8000
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 `
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/estatutos/', timeout=8)"]
+
+CMD ["python", "serve.py"]

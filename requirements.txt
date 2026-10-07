@@ -5,4 +5,7 @@ PyMuPDF>=1.24,<2
 
 psycopg[binary]>=3.2,<4
 psycopg-pool>=3.2,<4
-gunicorn>=22,<24
+
+# Servidores de producción: gunicorn (Linux) y waitress (Windows)
+gunicorn>=22,<24; sys_platform != "win32"
+waitress>=3,<4
