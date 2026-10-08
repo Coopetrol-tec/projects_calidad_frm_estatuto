@@ -91,7 +91,7 @@ img { display: block; max-width: 100%; }
 }
 .public-hero { padding: 46px 0 132px; }
 .compact-hero { padding: 34px 0 98px; }
-.public-hero__content { max-width: 820px; }
+.public-hero__content { max-width: 920px; }
 .public-hero h1, .compact-hero h1 {
   margin: 12px 0 10px;
   line-height: 1.08;
