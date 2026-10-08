@@ -137,7 +137,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 window.STATUTE_DATA = {{ statute_data|tojson }};
 window.STATUTE_RESTRICTIONS = {{ statute_restrictions|tojson }};
 window.STATUTE_INITIAL = {{ {
