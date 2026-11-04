@@ -1,0 +1,40 @@
+# Entorno de QA en Linux (servidor 192.168.252.59).
+# Uso: sudo docker compose -f docker-compose.qa.yml up -d --build
+# URL: http://192.168.252.59:8546/estatutos/  (solo red interna, sin TLS)
+name: estatutos-qa
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env.qa
+    environment:
+      TZ: America/Bogota
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    image: coopetrol/estatutos:qa
+    restart: unless-stopped
+    env_file: .env.qa
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8546:8000"
+    volumes:
+      - estatuto_data:/app/data
+      - estatuto_pages:/app/static/generated/pages
+      - estatuto_instance:/app/instance
+
+volumes:
+  pgdata:
+  estatuto_data:
+  estatuto_pages:
+  estatuto_instance:

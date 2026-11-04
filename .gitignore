@@ -7,3 +7,4 @@ instance/*.db
 .env.production
 .env.production.bak*
 certs/
+.env.qa

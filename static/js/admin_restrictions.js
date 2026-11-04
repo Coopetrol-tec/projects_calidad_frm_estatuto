@@ -52,6 +52,16 @@
     return String(item.logical_id || item.id || '');
   }
 
+  // El texto del Estatuto proviene del PDF: se escapa antes de insertarlo como HTML.
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function referenceLabel(item) {
     const parts = [];
     if (item.capitulo) parts.push(item.capitulo);
@@ -184,7 +194,7 @@
       button.className = `search-result${blockingRuleFor(item) ? ' is-blocked-result' : ''}`;
       const summary = String(item.snippet || '').replace(/\s+/g, ' ').slice(0, 95);
       const state = blockingRuleFor(item) ? '<em>No editable</em>' : '';
-      button.innerHTML = `<strong>${item.label || referenceLabel(item)} ${state}</strong><small>${summary}${summary.length >= 95 ? '…' : ''}</small>`;
+      button.innerHTML = `<strong>${escapeHtml(item.label || referenceLabel(item))} ${state}</strong><small>${escapeHtml(summary)}${summary.length >= 95 ? '…' : ''}</small>`;
       button.addEventListener('click', () => {
         selectItem(item, true);
         searchResults.classList.remove('is-open');

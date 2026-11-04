@@ -1,12 +1,18 @@
 import csv
 import io
 import json
+import logging
 import os
 import re
 import secrets
 import sqlite3
+import tempfile
+import threading
+import time
+from collections import defaultdict, deque
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import (
@@ -54,12 +60,41 @@ def _env_flag(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "si", "sí", "on"}
 
 
+def _env_secret(name: str) -> str:
+    """Lee un secreto quitando comillas envolventes (docker run --env-file las deja literales)."""
+    value = (os.getenv(name) or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        value = value[1:-1]
+    return value
+
+
+# En producción (contenedores Docker) la configuración insegura impide arrancar.
+IS_PRODUCTION = (os.getenv("APP_ENV") or "development").strip().lower() == "production"
+_PLACEHOLDER_SECRETS = {
+    "", "x", "coopetrol-local-dev-key", "cambie-esta-clave", "cambie-esta-clave-para-produccion",
+}
+
+
+def _load_secret_key() -> str:
+    key = _env_secret("SECRET_KEY")
+    if key in _PLACEHOLDER_SECRETS or len(key) < 32:
+        if IS_PRODUCTION:
+            raise RuntimeError(
+                "SECRET_KEY no está definida o es insegura (mínimo 32 caracteres aleatorios)."
+            )
+        # Desarrollo local: clave aleatoria por ejecución, nunca una clave fija conocida.
+        print("Advertencia: SECRET_KEY insegura; se usa una clave temporal (sesiones se pierden al reiniciar).")
+        return secrets.token_hex(32)
+    return key
+
+
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.getenv("SECRET_KEY") or "coopetrol-local-dev-key",
+    SECRET_KEY=_load_secret_key(),
     APP_NAME=os.getenv("APP_NAME") or "Propuestas de ajuste al Estatuto",
-    ADMIN_PASSWORD=os.getenv("ADMIN_PASSWORD") or "",
-    ADMIN_PASSWORD_HASH=os.getenv("ADMIN_PASSWORD_HASH") or "",
+    # La contraseña en texto plano solo se admite en desarrollo local.
+    ADMIN_PASSWORD="" if IS_PRODUCTION else _env_secret("ADMIN_PASSWORD"),
+    ADMIN_PASSWORD_HASH=_env_secret("ADMIN_PASSWORD_HASH"),
     MAX_CONTENT_LENGTH=30 * 1024 * 1024,
     # Ruta base de publicación (p. ej. /estatutos detrás del proxy). También fija
     # la ruta de la cookie de sesión para no mezclarla con otras aplicaciones.
@@ -67,8 +102,14 @@ app.config.update(
     SESSION_COOKIE_NAME=os.getenv("SESSION_COOKIE_NAME") or "session",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=_env_flag("SESSION_COOKIE_SECURE", False),
+    SESSION_COOKIE_SECURE=_env_flag("SESSION_COOKIE_SECURE", IS_PRODUCTION),
 )
+
+if IS_PRODUCTION and not app.config["ADMIN_PASSWORD_HASH"]:
+    raise RuntimeError("ADMIN_PASSWORD_HASH no está definida: el panel administrativo quedaría sin protección.")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+audit_log = logging.getLogger("estatutos.auditoria")
 
 # Detrás de un proxy inverso (nginx/IIS) se respetan X-Forwarded-For/Proto/Host/Port.
 if _env_flag("BEHIND_PROXY", False):
@@ -378,10 +419,84 @@ def member_guard():
 
 
 def _admin_password_matches(password: str) -> bool:
+    if not password:
+        return False
     configured_hash = app.config["ADMIN_PASSWORD_HASH"]
     if configured_hash:
-        return check_password_hash(configured_hash, password)
-    return secrets.compare_digest(password, app.config["ADMIN_PASSWORD"])
+        try:
+            return check_password_hash(configured_hash, password)
+        except ValueError:
+            audit_log.error("ADMIN_PASSWORD_HASH tiene un formato inválido.")
+            return False
+    plain = app.config["ADMIN_PASSWORD"]
+    # Sin contraseña configurada el acceso queda cerrado (antes "" == "" permitía entrar).
+    if not plain:
+        return False
+    return secrets.compare_digest(password.encode("utf-8"), plain.encode("utf-8"))
+
+
+class AttemptLimiter:
+    """Límite de intentos fallidos en memoria por clave (IP, cédula...)."""
+
+    def __init__(self, max_attempts: int, window_seconds: int):
+        self.max_attempts = max_attempts
+        self.window = window_seconds
+        self._attempts = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def _prune(self, bucket, now):
+        while bucket and now - bucket[0] > self.window:
+            bucket.popleft()
+
+    def is_blocked(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            bucket = self._attempts.get(key)
+            if not bucket:
+                return False
+            self._prune(bucket, now)
+            return len(bucket) >= self.max_attempts
+
+    def register_failure(self, key: str):
+        now = time.monotonic()
+        with self._lock:
+            bucket = self._attempts[key]
+            self._prune(bucket, now)
+            bucket.append(now)
+            if len(self._attempts) > 50000:  # evita crecimiento ilimitado de memoria
+                self._attempts.clear()
+
+    def reset(self, key: str):
+        with self._lock:
+            self._attempts.pop(key, None)
+
+
+admin_login_limiter = AttemptLimiter(max_attempts=5, window_seconds=15 * 60)
+member_ip_limiter = AttemptLimiter(max_attempts=10, window_seconds=15 * 60)
+member_cedula_limiter = AttemptLimiter(max_attempts=5, window_seconds=15 * 60)
+
+
+def client_ip() -> str:
+    return request.remote_addr or "desconocida"
+
+
+def safe_external_url(value: str) -> bool:
+    """Solo enlaces https:// (o http://) absolutos; evita javascript:, data:, etc."""
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    return parsed.scheme in {"https", "http"} and bool(parsed.netloc) and len(value) <= 500
+
+
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n", "＝", "＋", "－", "＠")
+
+
+def excel_safe(value):
+    """Neutraliza inyección de fórmulas (CSV/Excel injection) en textos exportados."""
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 def _associate_header_indexes(header):
@@ -456,6 +571,10 @@ def _read_excel_associates(file_storage):
 
 
 
+# Campos agregados al formulario de propuestas (nombres fijos, no provienen del usuario).
+PROPOSAL_EXTRA_COLUMNS = ("justificacion", "modalidad_propuesta", "grupo_propuesta")
+
+
 def ensure_feature_schema():
     """Extiende la base existente sin borrar información."""
     conn = _connect_database()
@@ -464,6 +583,8 @@ def ensure_feature_schema():
         if USE_POSTGRES:
             cur.execute("ALTER TABLE associates ADD COLUMN IF NOT EXISTS nombre TEXT")
             cur.execute("ALTER TABLE associates ADD COLUMN IF NOT EXISTS fecha_expedicion DATE")
+            for column in PROPOSAL_EXTRA_COLUMNS:
+                cur.execute(f"ALTER TABLE proposals ADD COLUMN IF NOT EXISTS {column} TEXT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS statute_restrictions (
@@ -484,6 +605,10 @@ def ensure_feature_schema():
                 cur.execute("ALTER TABLE associates ADD COLUMN nombre TEXT")
             if "fecha_expedicion" not in existing:
                 cur.execute("ALTER TABLE associates ADD COLUMN fecha_expedicion TEXT")
+            proposal_columns = {row[1] for row in cur.execute("PRAGMA table_info(proposals)").fetchall()}
+            for column in PROPOSAL_EXTRA_COLUMNS:
+                if column not in proposal_columns:
+                    cur.execute(f"ALTER TABLE proposals ADD COLUMN {column} TEXT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS statute_restrictions (
@@ -593,23 +718,36 @@ def validate_member():
         flash("Debe autorizar el tratamiento de datos personales para continuar.", "error")
         return redirect(url_for("index"))
 
+    if len(cedula) > 15:
+        flash("Ingrese un número de documento válido.", "error")
+        return redirect(url_for("index"))
+
+    ip = client_ip()
+    if member_ip_limiter.is_blocked(ip) or member_cedula_limiter.is_blocked(cedula):
+        audit_log.warning("Validación bloqueada por exceso de intentos ip=%s", ip)
+        flash("Demasiados intentos de validación. Espere 15 minutos e intente nuevamente.", "error")
+        return redirect(url_for("index"))
+
     associate = fetchone(
         "SELECT cedula, nombre, fecha_expedicion FROM associates WHERE cedula = ?",
         (cedula,),
     )
-    if not associate:
-        return render_template("not_member.html", cedula=cedula)
+    stored_date = normalize_fecha_expedicion(associate["fecha_expedicion"]) if associate else ""
+    nombre = ((associate["nombre"] if associate else "") or "").strip()
 
-    stored_date = normalize_fecha_expedicion(associate["fecha_expedicion"])
-    if not stored_date or stored_date != fecha_expedicion:
-        flash("La fecha de expedición no coincide con la información registrada.", "error")
-        return redirect(url_for("index"))
+    # Respuesta única para cédula inexistente, fecha errada o registro incompleto:
+    # así no se puede averiguar quién es asociado de Coopetrol (Ley 1581 de 2012).
+    if not associate or not stored_date or stored_date != fecha_expedicion or not nombre:
+        member_ip_limiter.register_failure(ip)
+        member_cedula_limiter.register_failure(cedula)
+        if associate and stored_date == fecha_expedicion and not nombre:
+            audit_log.warning("Asociado sin nombre en la base (validación rechazada).")
+        return render_template("not_member.html")
 
-    nombre = (associate["nombre"] or "").strip()
-    if not nombre:
-        flash("El registro del asociado no tiene nombre. Solicite al administrador actualizar la base.", "error")
-        return redirect(url_for("index"))
-
+    member_ip_limiter.reset(ip)
+    member_cedula_limiter.reset(cedula)
+    # Sesión nueva al autenticarse (evita fijación de sesión).
+    session.clear()
     session["member_cedula"] = cedula
     session["member_name"] = nombre
     session["member_fecha_expedicion"] = fecha_expedicion
@@ -618,26 +756,14 @@ def validate_member():
     return redirect(url_for("proposal"))
 
 
+TIPOS_CAMBIO = ("Modificación", "Adición", "Eliminación")
+MODALIDADES_PROPUESTA = ("Propuesta individual", "Propuesta de grupo")
+GRUPOS_PROPUESTA = ("Consejo de Administración", "Agencia", "Administración")
+MAX_PROPUESTA = 10000
+
+
 @app.route("/propuesta", methods=["GET", "POST"])
 def proposal():
-    # CAMPOS_PROPUESTA_V8
-    if request.method == "POST":
-        justificacion = request.form.get("justificacion", "").strip()
-        modalidad_propuesta = request.form.get("modalidad_propuesta", "").strip()
-        grupo_propuesta = request.form.get("grupo_propuesta", "").strip()
-    
-        if not request.form.get("propuesta", "").strip():
-            return {"ok": False, "error": "La propuesta de modificación es obligatoria."}, 400
-        if not justificacion:
-            return {"ok": False, "error": "La justificación de la propuesta es obligatoria."}, 400
-        if modalidad_propuesta not in ("Propuesta individual", "Propuesta de grupo"):
-            return {"ok": False, "error": "Debe seleccionar una modalidad de propuesta válida."}, 400
-        if modalidad_propuesta == "Propuesta de grupo":
-            if grupo_propuesta not in ("Consejo de Administración", "Agencia", "Administración"):
-                return {"ok": False, "error": "Debe seleccionar el grupo que presenta la propuesta."}, 400
-        else:
-            grupo_propuesta = None
-
     guard = member_guard()
     if guard:
         return guard
@@ -669,6 +795,9 @@ def proposal():
         literal = (request.form.get("literal") or "").strip()
         pagina_raw = (request.form.get("pagina") or "").strip()
         referencia_texto = (request.form.get("referencia_texto") or "").strip()
+        justificacion = (request.form.get("justificacion") or "").strip()
+        modalidad_propuesta = (request.form.get("modalidad_propuesta") or "").strip()
+        grupo_propuesta = (request.form.get("grupo_propuesta") or "").strip()
 
         errors = []
         if not any([capitulo, articulo, paragrafo, numeral, literal]):
@@ -677,10 +806,24 @@ def proposal():
             blocked = find_blocking_restriction(capitulo, articulo, paragrafo, numeral, literal)
             if blocked:
                 errors.append(blocked.get("mensaje") or "Este texto no está habilitado para cambios.")
-        if not tipo_cambio:
+        if tipo_cambio not in TIPOS_CAMBIO:
             errors.append("Seleccione el tipo de solicitud.")
         if len(propuesta_texto) < 10:
             errors.append("Describa el ajuste propuesto con al menos 10 caracteres.")
+        if not justificacion:
+            errors.append("La justificación de la propuesta es obligatoria.")
+        if modalidad_propuesta not in MODALIDADES_PROPUESTA:
+            errors.append("Seleccione una modalidad de propuesta válida.")
+        elif modalidad_propuesta == "Propuesta de grupo":
+            if grupo_propuesta not in GRUPOS_PROPUESTA:
+                errors.append("Seleccione el grupo que presenta la propuesta.")
+        else:
+            grupo_propuesta = None
+        if len(propuesta_texto) > MAX_PROPUESTA or len(justificacion) > MAX_PROPUESTA:
+            errors.append(f"La propuesta y la justificación admiten máximo {MAX_PROPUESTA} caracteres cada una.")
+        if any(len(v) > 60 for v in (capitulo, articulo, paragrafo, numeral, literal)) \
+                or len(referencia_texto) > 4000 or len(pagina_raw) > 5:
+            errors.append("La referencia seleccionada no es válida. Selecciónela nuevamente en el Estatuto.")
 
         if errors:
             if is_ajax:
@@ -749,6 +892,13 @@ def thanks(proposal_id):
     guard = member_guard()
     if guard:
         return guard
+    # Un asociado solo puede ver la confirmación de sus propias propuestas.
+    own = fetchone(
+        "SELECT id FROM proposals WHERE id = ? AND cedula = ?",
+        (proposal_id, session["member_cedula"]),
+    )
+    if not own:
+        return redirect(url_for("proposal"))
     return render_template("thanks.html", proposal_id=proposal_id)
 
 
@@ -761,8 +911,7 @@ def statute_pdf():
 
 @app.route("/salir", methods=["POST"])
 def member_logout():
-    session.pop("member_cedula", None)
-    session.pop("member_consent_at", None)
+    session.clear()
     flash("Sesión finalizada.", "success")
     return redirect(url_for("index"))
 
@@ -776,11 +925,23 @@ def admin_login():
         return redirect(url_for("admin_dashboard"))
 
     if request.method == "POST":
+        ip = client_ip()
+        if admin_login_limiter.is_blocked(ip):
+            audit_log.warning("Login admin bloqueado por exceso de intentos ip=%s", ip)
+            flash("Demasiados intentos fallidos. Espere 15 minutos e intente nuevamente.", "error")
+            return render_template("admin_login.html"), 429
+
         password = request.form.get("password") or ""
         if _admin_password_matches(password):
+            admin_login_limiter.reset(ip)
+            # Sesión nueva al autenticarse (evita fijación de sesión).
+            session.clear()
             session["is_admin"] = True
             session.permanent = True
+            audit_log.info("Login admin exitoso ip=%s", ip)
             return redirect(url_for("admin_dashboard"))
+        admin_login_limiter.register_failure(ip)
+        audit_log.warning("Login admin fallido ip=%s", ip)
         flash("Contraseña incorrecta.", "error")
 
     return render_template("admin_login.html")
@@ -846,7 +1007,7 @@ def admin_save_restriction():
         "numeral": (request.form.get("numeral") or "").strip(),
         "literal": (request.form.get("literal") or "").strip(),
     }
-    mensaje = (request.form.get("mensaje") or "").strip() or "Este texto no está habilitado para cambios."
+    mensaje = (request.form.get("mensaje") or "").strip()[:300] or "Este texto no está habilitado para cambios."
 
     if not any(reference.values()):
         flash("Seleccione en el Estatuto el texto que desea marcar como no editable.", "error")
@@ -945,8 +1106,13 @@ def admin_load_associates():
         else:
             flash("Formato no permitido. Use CSV, XLSX o XLSM.", "error")
             return redirect(url_for("admin_dashboard", section="asociados"))
-    except Exception as exc:
+    except ValueError as exc:
+        # Errores de formato redactados por la propia aplicación (columnas faltantes).
         flash(f"No fue posible leer el archivo: {exc}", "error")
+        return redirect(url_for("admin_dashboard", section="asociados"))
+    except Exception:
+        audit_log.exception("Error leyendo la base de asociados")
+        flash("No fue posible leer el archivo. Verifique que sea un CSV o Excel válido.", "error")
         return redirect(url_for("admin_dashboard", section="asociados"))
 
     created_at = datetime.now().isoformat(timespec="seconds")
@@ -990,6 +1156,10 @@ def admin_load_associates():
         conn.rollback()
         raise
 
+    audit_log.info(
+        "Base de asociados cargada modo=%s validos=%s omitidos=%s ip=%s",
+        mode, len(values), ignored, client_ip(),
+    )
     flash(
         f"Base actualizada: {len(values)} asociados válidos. Filas omitidas: {ignored}. "
         "La carga se realizó de forma masiva.",
@@ -1013,15 +1183,40 @@ def admin_load_statute():
         flash("El documento debe ser un archivo PDF.", "error")
         return redirect(url_for("admin_dashboard", section="estatuto"))
 
-    uploaded.save(STATUTE_PDF)
+    # Se valida en un archivo temporal: si no es un PDF real, el Estatuto vigente no se toca.
+    fd, tmp_name = tempfile.mkstemp(suffix=".pdf", dir=DATA_DIR)
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        uploaded.save(tmp_path)
+        with tmp_path.open("rb") as fh:
+            is_pdf = fh.read(5) == b"%PDF-"
+        if is_pdf:
+            import pymupdf
+
+            with pymupdf.open(tmp_path) as doc:
+                is_pdf = doc.page_count > 0 and not doc.needs_pass
+        if not is_pdf:
+            flash("El archivo no es un PDF válido o está protegido con contraseña.", "error")
+            return redirect(url_for("admin_dashboard", section="estatuto"))
+        os.replace(tmp_path, STATUTE_PDF)
+    except Exception:
+        audit_log.exception("Error validando el PDF del Estatuto")
+        flash("El archivo no es un PDF válido.", "error")
+        return redirect(url_for("admin_dashboard", section="estatuto"))
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
     try:
         result = process_statute_pdf(str(STATUTE_PDF), str(STATUTE_STRUCTURE), str(PAGE_IMAGES_DIR))
+        audit_log.info("Estatuto reemplazado ip=%s articulos=%s", client_ip(), result.get("article_count", 0))
         flash(
             f"Estatuto actualizado correctamente: {result.get('article_count', 0)} artículos y {len(result.get('items', []))} zonas seleccionables.",
             "success",
         )
-    except Exception as exc:
-        flash(f"El PDF se guardó, pero no fue posible procesarlo: {exc}", "error")
+    except Exception:
+        audit_log.exception("Error procesando el PDF del Estatuto")
+        flash("El PDF se guardó, pero no fue posible procesarlo. Revise el registro de la aplicación.", "error")
     return redirect(url_for("admin_dashboard", section="estatuto"))
 
 
@@ -1031,10 +1226,18 @@ def admin_settings():
     if guard:
         return guard
 
-    for key in ("admission_url", "privacy_url", "statute_title"):
-        value = (request.form.get(key) or "").strip()
+    values = {key: (request.form.get(key) or "").strip() for key in ("admission_url", "privacy_url", "statute_title")}
+    for key in ("admission_url", "privacy_url"):
+        if values[key] and not safe_external_url(values[key]):
+            flash("Los enlaces deben ser direcciones web completas que empiecen por https://.", "error")
+            return redirect(url_for("admin_dashboard", section="configuracion"))
+    if len(values["statute_title"]) > 200:
+        flash("El título del Estatuto admite máximo 200 caracteres.", "error")
+        return redirect(url_for("admin_dashboard", section="configuracion"))
+    for key, value in values.items():
         if value:
             save_setting(key, value)
+    audit_log.info("Configuración modificada ip=%s", client_ip())
     flash("Configuración guardada.", "success")
     return redirect(url_for("admin_dashboard", section="configuracion"))
 
@@ -1092,7 +1295,8 @@ def admin_export():
 
     headers = [
         "ID", "Cédula", "Nombre", "Capítulo", "Artículo", "Parágrafo", "Numeral", "Literal",
-        "Página", "Texto de referencia", "Tipo de solicitud", "Propuesta", "Autorización datos", "Fecha"
+        "Página", "Texto de referencia", "Tipo de solicitud", "Propuesta", "Justificación",
+        "Modalidad", "Grupo", "Autorización datos", "Fecha"
     ]
     ws.append(headers)
     header_fill = PatternFill("solid", fgColor="0B8F3A")
@@ -1101,15 +1305,23 @@ def admin_export():
         cell.fill = header_fill
 
     for row in rows:
-        ws.append([
-            row["id"], row["cedula"], row["nombre"], row["capitulo"], row["articulo"], row["paragrafo"],
-            row["numeral"], row["literal"], row["pagina"], row["referencia_texto"], row["tipo_cambio"],
-            row["propuesta"], row["consentimiento_at"], row["created_at"],
-        ])
+        data = dict(row)
+        values = [
+            data.get("id"), data.get("cedula"), data.get("nombre"), data.get("capitulo"),
+            data.get("articulo"), data.get("paragrafo"), data.get("numeral"), data.get("literal"),
+            data.get("pagina"), data.get("referencia_texto"), data.get("tipo_cambio"),
+            data.get("propuesta"), data.get("justificacion"), data.get("modalidad_propuesta"),
+            data.get("grupo_propuesta"), data.get("consentimiento_at"), data.get("created_at"),
+        ]
+        ws.append([excel_safe(value) for value in values])
+        # Todo texto se guarda como texto literal: Excel nunca lo evalúa como fórmula.
+        for cell in ws[ws.max_row]:
+            if isinstance(cell.value, str):
+                cell.data_type = "s"
 
     widths = {
         "A": 8, "B": 18, "C": 30, "D": 34, "E": 12, "F": 14, "G": 12, "H": 10,
-        "I": 10, "J": 65, "K": 20, "L": 70, "M": 22, "N": 22,
+        "I": 10, "J": 65, "K": 20, "L": 70, "M": 70, "N": 22, "O": 26, "P": 22, "Q": 22,
     }
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
@@ -1119,6 +1331,7 @@ def admin_export():
     stream = io.BytesIO()
     wb.save(stream)
     stream.seek(0)
+    audit_log.info("Exportación de propuestas a Excel registros=%s ip=%s", len(rows), client_ip())
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return send_file(
         stream,
@@ -1130,10 +1343,12 @@ def admin_export():
 
 @app.route("/admin/salir", methods=["POST"])
 def admin_logout():
-    session.pop("is_admin", None)
+    session.clear()
+    audit_log.info("Logout admin ip=%s", client_ip())
     flash("Sesión administrativa finalizada.", "success")
     return redirect(url_for("admin_login"))
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=_env_flag("FLASK_DEBUG", True))
+    # El depurador de Werkzeug permite ejecutar código: solo con FLASK_DEBUG=true explícito.
+    app.run(host="127.0.0.1", port=5000, debug=_env_flag("FLASK_DEBUG", False))

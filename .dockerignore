@@ -26,6 +26,7 @@ docker-compose.yml
 Dockerfile
 Dockerfile.windows
 docker-compose.windows.yml
+docker-compose.qa.yml
 .dockerignore
 *.md
 deploy
