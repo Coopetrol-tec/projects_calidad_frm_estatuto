@@ -107,6 +107,36 @@
         <label class="field">
           <span>¿Qué cambio desea realizar? *</span>
           <textarea name="propuesta" id="propuestaTexto" rows="8" minlength="10" required placeholder="Describa el texto que propone modificar, adicionar o eliminar.">{{ form.get('propuesta', '') }}</textarea>
+<!-- CAMPOS_PROPUESTA_V8 -->
+<div class="field proposal-extra-field">
+  <label for="justificacion">Justificación de la propuesta *</label>
+  <textarea
+    id="justificacion"
+    name="justificacion"
+    rows="5"
+    required
+    placeholder="Explique las razones que motivan el cambio y por qué considera necesaria o conveniente su implementación."
+  ></textarea>
+</div>
+
+<div class="field proposal-extra-field">
+  <label for="modalidad_propuesta">Modalidad de la propuesta *</label>
+  <select id="modalidad_propuesta" name="modalidad_propuesta" required>
+    <option value="">Seleccione una opción</option>
+    <option value="Propuesta individual">Propuesta individual</option>
+    <option value="Propuesta de grupo">Propuesta de grupo</option>
+  </select>
+</div>
+
+<div class="field proposal-extra-field" id="grupo_propuesta_contenedor" hidden>
+  <label for="grupo_propuesta">Grupo que presenta la propuesta *</label>
+  <select id="grupo_propuesta" name="grupo_propuesta" disabled>
+    <option value="">Seleccione una opción</option>
+    <option value="Consejo de Administración">Consejo de Administración</option>
+    <option value="Agencia">Agencia</option>
+    <option value="Administración">Administración</option>
+  </select>
+</div>
         </label>
 
         <div class="process-note">
@@ -118,6 +148,31 @@
           <button class="btn btn--primary btn--large" id="submitProposalButton" type="submit">Enviar recomendación</button>
         </div>
       </form>
+
+<!-- CONFIRMACION_FINAL_V8 -->
+<div id="finalizarConfirmacionModal" class="finish-confirm-overlay" hidden>
+  <div
+    class="finish-confirm-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="finalizarConfirmacionTitulo"
+  >
+    <div class="finish-confirm-icon">&#10003;</div>
+    <div class="finish-confirm-kicker">REGISTRO FINALIZADO</div>
+    <h2 id="finalizarConfirmacionTitulo">Propuesta(s) recibida(s)</h2>
+    <p>
+      Su propuesta o propuestas fueron recibidas correctamente.
+      Al continuar se cerrará su sesión de registro.
+    </p>
+    <button
+      type="button"
+      id="confirmarSalidaRegistro"
+      class="finish-confirm-button"
+    >
+      Aceptar y salir
+    </button>
+  </div>
+</div>
     </div>
 
     <div id="proposalSuccessState" class="proposal-success" hidden>

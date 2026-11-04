@@ -75,5 +75,33 @@
       });
     })();
   </script>
+<!-- CONFIRMACION_FINAL_POST_V9 -->
+<div id="confirmacionFinalRegistroV9" class="finish-confirm-overlay" hidden>
+  <div
+    class="finish-confirm-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirmacionFinalTituloV9"
+  >
+    <div class="finish-confirm-icon">&#10003;</div>
+    <div class="finish-confirm-kicker">REGISTRO FINALIZADO</div>
+    <h2 id="confirmacionFinalTituloV9">Propuesta(s) recibida(s)</h2>
+    <p>
+      Su propuesta o propuestas fueron recibidas correctamente.
+      El registro ha finalizado.
+    </p>
+    <button
+      type="button"
+      id="aceptarConfirmacionFinalV9"
+      class="finish-confirm-button"
+    >
+      Aceptar
+    </button>
+  </div>
+</div>
+
+<script
+  src="{{ url_for('static', filename='js/finalization_confirmation_v9.js') }}"
+></script>
 </body>
 </html>

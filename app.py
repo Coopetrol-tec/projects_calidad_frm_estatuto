@@ -583,6 +583,24 @@ def validate_member():
 
 @app.route("/propuesta", methods=["GET", "POST"])
 def proposal():
+    # CAMPOS_PROPUESTA_V8
+    if request.method == "POST":
+        justificacion = request.form.get("justificacion", "").strip()
+        modalidad_propuesta = request.form.get("modalidad_propuesta", "").strip()
+        grupo_propuesta = request.form.get("grupo_propuesta", "").strip()
+    
+        if not request.form.get("propuesta", "").strip():
+            return {"ok": False, "error": "La propuesta de modificación es obligatoria."}, 400
+        if not justificacion:
+            return {"ok": False, "error": "La justificación de la propuesta es obligatoria."}, 400
+        if modalidad_propuesta not in ("Propuesta individual", "Propuesta de grupo"):
+            return {"ok": False, "error": "Debe seleccionar una modalidad de propuesta válida."}, 400
+        if modalidad_propuesta == "Propuesta de grupo":
+            if grupo_propuesta not in ("Consejo de Administración", "Agencia", "Administración"):
+                return {"ok": False, "error": "Debe seleccionar el grupo que presenta la propuesta."}, 400
+        else:
+            grupo_propuesta = None
+
     guard = member_guard()
     if guard:
         return guard
@@ -639,35 +657,28 @@ def proposal():
 
             if USE_POSTGRES:
                 cur = execute(
-                    """
-                    INSERT INTO proposals (
-                        cedula, nombre, capitulo, articulo, paragrafo, numeral, literal,
-                        pagina, referencia_texto, tipo_cambio, propuesta, consentimiento_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    RETURNING id
-                    """,
+                    '\n                    INSERT INTO proposals (cedula, nombre, capitulo, articulo, paragrafo, numeral, literal, pagina, referencia_texto, tipo_cambio, propuesta, consentimiento_at, created_at, justificacion, modalidad_propuesta, grupo_propuesta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n                    RETURNING id\n                    ',
                     (
                         cedula, nombre, capitulo, articulo, paragrafo, numeral, literal,
                         pagina, referencia_texto, tipo_cambio, propuesta_texto,
                         consentimiento_at, created_at,
-                    ),
+                        justificacion,
+                        modalidad_propuesta,
+                        grupo_propuesta),
                     commit=False,
                 )
                 proposal_id = cur.fetchone()["id"]
                 get_db().commit()
             else:
                 cur = execute(
-                    """
-                    INSERT INTO proposals (
-                        cedula, nombre, capitulo, articulo, paragrafo, numeral, literal,
-                        pagina, referencia_texto, tipo_cambio, propuesta, consentimiento_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    '\n                    INSERT INTO proposals (cedula, nombre, capitulo, articulo, paragrafo, numeral, literal, pagina, referencia_texto, tipo_cambio, propuesta, consentimiento_at, created_at, justificacion, modalidad_propuesta, grupo_propuesta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n                    ',
                     (
                         cedula, nombre, capitulo, articulo, paragrafo, numeral, literal,
                         pagina, referencia_texto, tipo_cambio, propuesta_texto,
                         consentimiento_at, created_at,
-                    ),
+                        justificacion,
+                        modalidad_propuesta,
+                        grupo_propuesta),
                 )
                 proposal_id = cur.lastrowid
 
