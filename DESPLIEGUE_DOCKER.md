@@ -169,6 +169,31 @@ punto, el contenedor actual sigue funcionando.
 
 Los datos (base, PDF del Estatuto e imágenes) están en los volúmenes `estatuto_*` y no se pierden.
 
+### Entorno de QA
+
+El script `deploy\actualizar.ps1` despliega también un entorno de QA, separado de producción:
+
+| | Producción | QA |
+|---|---|---|
+| Comando | `deploy\actualizar.ps1` | `deploy\actualizar.ps1 -Entorno qa` |
+| Contenedor | `estatutos` | `estatutos-qa` |
+| Puerto local | 8547 | 8548 |
+| Variables | `.env.production` | `.env.qa` |
+| Volúmenes | `estatuto_*` | `estatuto_qa_*` |
+
+`.env.qa` se crea a partir de `.env.production.windows.example`, con su **propia** `SECRET_KEY`
+y, si usa PostgreSQL, una base distinta a la de producción. El script no toca Tomcat en QA.
+
+### Requisitos de seguridad del arranque
+
+La imagen se ejecuta con `APP_ENV=production` y **no arranca** si:
+
+- `SECRET_KEY` falta, tiene menos de 32 caracteres o es un valor de ejemplo;
+- falta `ADMIN_PASSWORD_HASH` (ya no se acepta `ADMIN_PASSWORD` en texto plano).
+
+El script crea una regla de firewall que bloquea el acceso remoto al puerto local (8547/8548),
+que es HTTP sin TLS; solo Tomcat, desde el propio servidor, debe llegar a él.
+
 ### Respaldo de la base de datos
 
 ```powershell

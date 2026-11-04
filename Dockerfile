@@ -20,7 +20,8 @@ RUN useradd --create-home --uid 1000 appuser \
 USER appuser
 
 # Gunicorn recorta este prefijo de la URL, así Flask genera enlaces bajo /estatutos.
-ENV SCRIPT_NAME=/estatutos \
+ENV APP_ENV=production \
+    SCRIPT_NAME=/estatutos \
     APPLICATION_ROOT=/estatutos \
     BEHIND_PROXY=true \
     FLASK_DEBUG=false

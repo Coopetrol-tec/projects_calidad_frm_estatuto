@@ -31,7 +31,8 @@ RUN New-Item -ItemType Directory -Force C:\app\seed\data, C:\app\seed\pages | Ou
     New-Item -ItemType Directory -Force C:\app\instance | Out-Null; `
     Get-ChildItem C:\app\instance | Remove-Item -Recurse -Force
 
-ENV URL_PREFIX=/estatutos `
+ENV APP_ENV=production `
+    URL_PREFIX=/estatutos `
     APPLICATION_ROOT=/estatutos `
     BEHIND_PROXY=true `
     FLASK_DEBUG=false `

@@ -328,7 +328,7 @@
       button.type = 'button';
       button.className = 'search-result';
       const summary = (item.snippet || '').replace(/\s+/g, ' ').slice(0, 95);
-      button.innerHTML = `<strong>${item.label}</strong><small>${summary}${summary.length >= 95 ? '…' : ''}</small>`;
+      button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(summary)}${summary.length >= 95 ? '…' : ''}</small>`;
 
       button.addEventListener('click', event => {
         event.preventDefault();

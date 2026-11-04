@@ -5,11 +5,12 @@
   <article class="light-card status-card">
     <div class="status-icon status-icon--warning">!</div>
     <span class="card-kicker">VALIDACIÓN</span>
-    <h1>Usted no figura como asociado</h1>
-    <p>El documento <strong>{{ cedula }}</strong> no se encontró en la base habilitada para este proceso.</p>
+    <h1>No fue posible validar sus datos</h1>
+    <p>Verifique el número de documento y la fecha de expedición e intente nuevamente.</p>
+    <p>Si aún no es asociado de COOPETROL, puede solicitar su admisión en línea.</p>
     <div class="button-row button-row--center">
-      <a class="btn btn--primary" href="{{ settings.admission_url }}" target="_blank" rel="noopener">Ir a admisión en línea</a>
-      <a class="btn btn--secondary" href="{{ url_for('index') }}">Intentar nuevamente</a>
+      <a class="btn btn--primary" href="{{ url_for('index') }}">Intentar nuevamente</a>
+      <a class="btn btn--secondary" href="{{ settings.admission_url }}" target="_blank" rel="noopener noreferrer">Ir a admisión en línea</a>
     </div>
   </article>
 </section>

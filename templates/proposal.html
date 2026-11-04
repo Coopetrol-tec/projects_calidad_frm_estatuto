@@ -106,13 +106,14 @@
 
         <label class="field">
           <span>¿Qué cambio desea realizar? *</span>
-          <textarea name="propuesta" id="propuestaTexto" rows="8" minlength="10" required placeholder="Describa el texto que propone modificar, adicionar o eliminar.">{{ form.get('propuesta', '') }}</textarea>
+          <textarea name="propuesta" id="propuestaTexto" rows="8" minlength="10" maxlength="10000" required placeholder="Describa el texto que propone modificar, adicionar o eliminar.">{{ form.get('propuesta', '') }}</textarea>
 <!-- CAMPOS_PROPUESTA_V8 -->
 <div class="field proposal-extra-field">
   <label for="justificacion">Justificación de la propuesta *</label>
   <textarea
     id="justificacion"
     name="justificacion"
+    maxlength="10000"
     rows="5"
     required
     placeholder="Explique las razones que motivan el cambio y por qué considera necesaria o conveniente su implementación."
@@ -205,5 +206,5 @@ window.STATUTE_INITIAL = {{ {
   'referencia_texto': form.get('referencia_texto', '')
 }|tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/proposal.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/proposal.js') }}?v=8"></script>
 {% endblock %}
