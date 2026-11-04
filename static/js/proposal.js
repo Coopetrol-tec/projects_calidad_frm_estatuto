@@ -490,3 +490,40 @@
     if (match) selectItem(match, false);
   }
 })();
+
+// CAMPOS_PROPUESTA_V9
+(function () {
+  function iniciarModalidadPropuestaV9() {
+    const modalidad = document.getElementById("modalidad_propuesta");
+    const contenedor = document.getElementById("grupo_propuesta_contenedor");
+    const grupo = document.getElementById("grupo_propuesta");
+
+    if (!modalidad || !contenedor || !grupo) return;
+
+    function actualizar() {
+      const esGrupo = modalidad.value === "Propuesta de grupo";
+
+      contenedor.hidden = !esGrupo;
+      contenedor.style.display = esGrupo ? "" : "none";
+
+      grupo.disabled = !esGrupo;
+      grupo.required = esGrupo;
+
+      if (!esGrupo) {
+        grupo.value = "";
+      }
+    }
+
+    modalidad.addEventListener("change", actualizar);
+    actualizar();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      iniciarModalidadPropuestaV9
+    );
+  } else {
+    iniciarModalidadPropuestaV9();
+  }
+})();
