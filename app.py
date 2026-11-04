@@ -254,10 +254,47 @@ def csrf_protect():
             return "Solicitud inválida: token de seguridad no válido.", 400
 
 
+def csp_nonce():
+    if "csp_nonce" not in g:
+        g.csp_nonce = secrets.token_urlsafe(16)
+    return g.csp_nonce
+
+
+# HSTS aplica a todo el host (todos los puertos): solo se activa si HSTS_MAX_AGE > 0
+# y ningún otro servicio de sistemas.coopetrol.coop se publica por http://.
+HSTS_MAX_AGE = int(os.getenv("HSTS_MAX_AGE") or 0)
+
+
+@app.after_request
+def security_headers(response):
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        f"script-src 'self' 'nonce-{csp_nonce()}'; "
+        "style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+    )
+    if HSTS_MAX_AGE > 0:
+        headers.setdefault("Strict-Transport-Security", f"max-age={HSTS_MAX_AGE}")
+    # Las páginas y descargas pueden contener datos personales: no se guardan en caché.
+    # Los archivos estáticos (CSS, JS, imágenes) conservan su caché normal.
+    if request.endpoint != "static":
+        headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.context_processor
 def inject_globals():
     return {
         "csrf_token": csrf_token,
+        "csp_nonce": csp_nonce,
         "settings": get_settings(),
         "app_name": app.config["APP_NAME"],
     }

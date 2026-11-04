@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuración solo de /estatutos (no afecta a las demás aplicaciones de Tomcat).
+  El ProxyServlet reescribe las cookies de la aplicación y pierde el atributo SameSite;
+  aquí Tomcat lo vuelve a agregar a todas las cookies de este contexto.
+-->
+<Context>
+  <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor"
+                   sameSiteCookies="lax" />
+</Context>

@@ -156,11 +156,16 @@ Copy-Item deploy\tomcat\estatutos.war C:\prod\tomcat9java8\apache-tomcat-9.0.85\
 
 ```powershell
 cd C:\Users\Administrador\Documents\estatutos\Frm_Estatuto
-git pull
-docker build -f Dockerfile.windows -t coopetrol/estatutos:windows .
-docker rm -f estatutos
-# repetir el "docker run" de arriba
+powershell -ExecutionPolicy Bypass -File deploy\actualizar.ps1
 ```
+
+El script valida `.env.production`, hace `git pull`, construye la imagen, prueba la conexión a
+PostgreSQL con la imagen nueva y solo entonces reemplaza el contenedor. Si algo falla antes de ese
+punto, el contenedor actual sigue funcionando.
+
+`.env.production` vive **solo en el servidor** (no está en git): no lo copie desde el equipo local.
+`DATABASE_URL` debe usar `172.26.144.1`, no `host.docker.internal`, y los valores van sin comillas.
+`docker restart` no vuelve a leer `.env.production`; después de editarlo hay que recrear el contenedor.
 
 Los datos (base, PDF del Estatuto e imágenes) están en los volúmenes `estatuto_*` y no se pierden.
 

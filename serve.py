@@ -38,4 +38,6 @@ if __name__ == "__main__":
         url_prefix=os.getenv("URL_PREFIX") or "",
         threads=int(os.getenv("WAITRESS_THREADS") or 8),
         channel_timeout=300,
+        # Sin cabecera "Server: waitress" (no revelar el software del servidor).
+        ident="",
     )

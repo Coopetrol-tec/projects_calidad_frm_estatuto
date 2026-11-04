@@ -330,7 +330,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 window.ADMIN_STATUTE_DATA = {{ statute_data|tojson }};
 window.ADMIN_STATUTE_RESTRICTIONS = {{ statute_restrictions|tojson }};
 </script>

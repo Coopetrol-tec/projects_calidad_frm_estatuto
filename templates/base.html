@@ -6,7 +6,7 @@
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flash_messages.css') }}">
-  <script>window.STATIC_URL = {{ url_for('static', filename='')|tojson }};</script>
+  <script nonce="{{ csp_nonce() }}">window.STATIC_URL = {{ url_for('static', filename='')|tojson }};</script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% block site_header %}
@@ -36,7 +36,7 @@
   <main>{% block content %}{% endblock %}</main>
   {% block scripts %}{% endblock %}
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     (function () {
       const messages = document.querySelectorAll('.js-flash');
 
