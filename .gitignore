@@ -11,3 +11,4 @@ certs/
 backups/
 .qa_version_actual
 .qa_version_anterior
+.version_*

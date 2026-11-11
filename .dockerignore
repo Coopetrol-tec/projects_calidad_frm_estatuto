@@ -32,3 +32,4 @@ docker-compose.qa.yml
 deploy
 backups
 .qa_version_*
+.version_*
