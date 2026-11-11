@@ -4,6 +4,11 @@ Cada versión desplegada corresponde a un tag de git (`vX.Y.Z`) y a una imagen D
 `coopetrol/estatutos:X.Y.Z`. Para volver a una versión anterior ver
 "Versiones y reversión" en `DESPLIEGUE_DOCKER.md`.
 
+## 1.1.0-rc.2 (QA) — 2026-11-11
+
+- `deploy/qa.sh`: las operaciones de git se ejecutan como el usuario dueño del repositorio
+  aunque el script corra con `sudo`. Admite servidores sin acceso a GitHub (remoto = bundle).
+
 ## 1.1.0-rc.1 (QA) — 2026-11-11
 
 - Notificación por correo al asociado al pulsar **Finalizar registro**: un solo mensaje con
