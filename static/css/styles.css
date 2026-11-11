@@ -218,7 +218,7 @@ input:focus, select:focus, textarea:focus {
 .btn--dark:hover { background: #1f2c26; }
 .btn--outline { background: #fff; color: var(--green-dark); border: 1px solid #9ac8aa; }
 .btn--outline:hover { background: var(--green-soft); }
-.btn--small { padding: 9px 12px; font-size: .9rem; }
+.btn--small { padding: 9px 12px;min-width: 200px !important; font-size: .9rem; }
 .btn--large { min-height: 52px; }
 .btn--full { width: 100%; }
 .button-row { display: flex; gap: 10px; flex-wrap: wrap; }

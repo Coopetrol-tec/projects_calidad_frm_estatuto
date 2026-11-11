@@ -128,7 +128,7 @@ app.permanent_session_lifetime = timedelta(minutes=30)
 DEFAULT_SETTINGS = {
     "admission_url": "https://www.coopetrol.coop/admision-virtual/",
     "privacy_url": "https://www.coopetrol.coop/wp-content/uploads/2024/09/Manual_de_Politicas_y_Procedimientos_para_el_Tratamiento_de_Datos_Personales_WEB.pdf",
-    "statute_title": "Estatuto Coopetrol 2023",
+    "statute_title": "Estatuto Coopetrol",
 }
 
 
