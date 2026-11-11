@@ -4,6 +4,15 @@ Cada versión desplegada corresponde a un tag de git (`vX.Y.Z`) y a una imagen D
 `coopetrol/estatutos:X.Y.Z`. Para volver a una versión anterior ver
 "Versiones y reversión" en `DESPLIEGUE_DOCKER.md`.
 
+## 1.1.0 — 2026-11-11 (producción)
+
+Versión validada en QA (1.1.0-rc.4) que pasa a producción. Incluye todo lo de 1.1.0-rc.1 a rc.4.
+
+- `deploy/actualizar.ps1` (producción Windows): imágenes por versión
+  (`coopetrol/estatutos:windows-<versión>`), despliegue por tag (`-Version`), respaldo de la base
+  antes de reemplazar el contenedor, vuelta automática si la versión nueva no responde y
+  reversión manual (`-Revertir`, `-Revertir -A <versión>`).
+
 ## 1.1.0-rc.4 (QA) — 2026-11-11
 
 - Nuevo texto del correo de confirmación (agradecimiento por participar en la reforma);
