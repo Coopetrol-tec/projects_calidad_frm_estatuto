@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Punto de entrada del despliegue automático a QA (lo invoca GitHub Actions).
+#
+# Se instala UNA vez en el servidor de QA, como root y no editable por pqrs:
+#   sudo install -o root -g root -m 0755 deploy/qa/estatutos-qa-deploy /usr/local/sbin/estatutos-qa-deploy
+#   echo 'pqrs ALL=(root) NOPASSWD: /usr/local/sbin/estatutos-qa-deploy' | sudo tee /etc/sudoers.d/estatutos-qa
+#   sudo chmod 0440 /etc/sudoers.d/estatutos-qa && sudo visudo -c
+#
+# Uso (desde el workflow): sudo /usr/local/sbin/estatutos-qa-deploy <sha> <carpeta-del-runner>
+set -euo pipefail
+
+SHA="${1:-}"
+WORKSPACE="${2:-}"
+APP_DIR="/home/pqrs/estatutos-qa"
+RUNNER_WORK="/home/pqrs/actions-runner-estatutos/_work/"
+APP_USER="pqrs"
+
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "ERROR: commit inválido: $SHA" >&2; exit 2; }
+[[ "$WORKSPACE" == "$RUNNER_WORK"* && -d "$WORKSPACE/.git" ]] \
+    || { echo "ERROR: carpeta del runner no válida: $WORKSPACE" >&2; exit 2; }
+
+# El código se trae y se cambia como el usuario dueño de la carpeta (no como root), de modo
+# que se ejecute la versión de deploy/qa.sh que corresponde al commit validado.
+sudo -u "$APP_USER" git -C "$APP_DIR" fetch -q --tags "$WORKSPACE"
+sudo -u "$APP_USER" git -C "$APP_DIR" fetch -q "$WORKSPACE" HEAD
+sudo -u "$APP_USER" git -C "$APP_DIR" checkout -q --detach "$SHA"
+
+cd "$APP_DIR"
+SUDO_USER="$APP_USER" exec ./deploy/qa.sh desplegar "$SHA" "$WORKSPACE"

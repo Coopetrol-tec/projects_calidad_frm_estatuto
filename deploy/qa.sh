@@ -2,7 +2,8 @@
 # Despliegue versionado del entorno de QA en Linux (docker-compose.qa.yml).
 #
 # Uso (desde la carpeta del proyecto en el servidor):
-#   sudo deploy/qa.sh desplegar v1.1.1   # despliega un tag de git
+#   sudo deploy/qa.sh desplegar v1.1.1   # despliega un tag (o un commit) de git
+#   (el CI despliega cada push a develop con deploy/qa/estatutos-qa-deploy)
 #   sudo deploy/qa.sh revertir                # vuelve a la versión anterior
 #   sudo deploy/qa.sh revertir 1.0.0          # vuelve a una versión concreta
 #   sudo deploy/qa.sh estado                  # versión actual, anterior e imágenes disponibles
@@ -63,13 +64,18 @@ respaldar_base() {  # $1 = etiqueta para el nombre del archivo
         info "Copia de la base: $archivo"
     else
         rm -f "$archivo"
-        fallar "No fue posible respaldar la base; no se despliega."
+        return 1
     fi
+    # Conserva las 20 copias más recientes.
+    ls -1t backups/qa_*.sql.gz 2>/dev/null | tail -n +21 | xargs -r rm -f
 }
 
 desplegar() {
-    local tag="${1:-}"
-    [[ -n "$tag" ]] || fallar "Indique el tag de git a desplegar, p. ej.: deploy/qa.sh desplegar v1.1.1"
+    # $1 = tag o commit a desplegar; $2 = repositorio de origen (por defecto "origin";
+    # el CI pasa la carpeta de trabajo del runner, que ya tiene el commit validado).
+    local ref="${1:-}"
+    local origen="${2:-origin}"
+    [[ -n "$ref" ]] || fallar "Indique el tag o commit a desplegar, p. ej.: deploy/qa.sh desplegar v1.1.1"
     [[ -f .env.qa ]] || fallar "No existe .env.qa en el servidor."
     [[ -z "$(git status --porcelain --untracked-files=no)" ]] || fallar "Hay cambios locales sin commit en el servidor."
 
@@ -78,17 +84,29 @@ desplegar() {
     previa="${previa:-qa}"
     local ref_previa
     ref_previa="$(git rev-parse HEAD)"
-
     info "Versión en ejecución: $previa"
-    respaldar_base "antes_de_${tag}"
 
-    git fetch --tags origin
-    git rev-parse -q --verify "refs/tags/$tag" >/dev/null || fallar "El tag $tag no existe."
-    git checkout -q --detach "$tag"
+    git fetch -q --tags "$origen"
+    git fetch -q "$origen" HEAD 2>/dev/null || true   # commit en HEAD del origen (carpeta del runner)
+    git rev-parse -q --verify "${ref}^{commit}" >/dev/null || fallar "No existe el tag o commit $ref."
+    git checkout -q --detach "$ref"
 
-    local nueva
-    nueva="$(tr -d '[:space:]' < VERSION)"
-    [[ -n "$nueva" ]] || fallar "El archivo VERSION está vacío en $tag."
+    # Un tag vX.Y.Z que coincide con VERSION se publica como X.Y.Z; cualquier otro commit
+    # (p. ej. un push a develop) como X.Y.Z-dev.<commit>, para no pisar imágenes de versiones.
+    local nueva base_ver corto
+    base_ver="$(tr -d '[:space:]' < VERSION)"
+    [[ -n "$base_ver" ]] || { git checkout -q "$ref_previa"; fallar "El archivo VERSION está vacío en $ref."; }
+    corto="$(git rev-parse --short=7 HEAD)"
+    if [[ "$(git tag --points-at HEAD)" == *"v${base_ver}"* ]]; then
+        nueva="$base_ver"
+    else
+        nueva="${base_ver}-dev.${corto}"
+    fi
+
+    if ! respaldar_base "antes_de_${nueva}"; then
+        git checkout -q "$ref_previa"
+        fallar "No fue posible respaldar la base; no se despliega."
+    fi
     info "Construyendo imagen ${IMAGEN}:${nueva}"
     if ! APP_VERSION="$nueva" "${COMPOSE[@]}" build app; then
         git checkout -q "$ref_previa"
@@ -104,6 +122,11 @@ desplegar() {
     if responde; then
         [[ "$previa" != "$nueva" ]] && echo "$previa" > "$ANTERIOR_FILE"
         echo "$nueva" > "$ACTUAL_FILE"
+        # Imágenes de desarrollo: se conservan las 5 más recientes (más la actual y la anterior).
+        docker image ls "$IMAGEN" --format '{{.Tag}}' | grep -- '-dev\.' | tail -n +6 | while read -r t; do
+            [[ "$t" == "$nueva" || "$t" == "$previa" ]] && continue
+            docker image rm "${IMAGEN}:${t}" >/dev/null 2>&1 || true
+        done
         info "Versión $nueva desplegada y respondiendo en $URL"
         info "Si algo falla: sudo deploy/qa.sh revertir   (vuelve a $previa)"
     else
@@ -154,7 +177,7 @@ estado() {
 }
 
 case "${1:-}" in
-    desplegar) desplegar "${2:-}" ;;
+    desplegar) desplegar "${2:-}" "${3:-}" ;;
     revertir) revertir "${2:-}" ;;
     estado) estado ;;
     *) sed -n '2,12p' "$0"; exit 1 ;;

@@ -4,6 +4,16 @@ Cada versión desplegada corresponde a un tag de git (`vX.Y.Z`) y a una imagen D
 `coopetrol/estatutos:X.Y.Z`. Para volver a una versión anterior ver
 "Versiones y reversión" en `DESPLIEGUE_DOCKER.md`.
 
+## 1.1.2 — 2026-11-11
+
+- Flujo de ramas `main` (producción) y `develop` (QA) con CI/CD en GitHub Actions
+  (`.github/workflows/ci.yml`, guía en `docs/FLUJO_CI_CD.md`).
+- Pruebas automáticas con pytest (`tests/`, `requirements-dev.txt`).
+- `deploy/qa.sh` despliega commits (no solo tags) y limpia imágenes de desarrollo antiguas;
+  `deploy/qa/estatutos-qa-deploy` es el punto de entrada del runner de QA.
+- `deploy/actualizar.ps1 -NoInteractivo` para el despliegue automático en producción.
+- `SQLITE_PATH` configurable (usado por las pruebas).
+
 ## 1.1.1 — 2026-11-11
 
 - Mejoras visuales (PR #3): "Validar" en el paso 1, botón "Descargar Estatuto Aquí", ancho

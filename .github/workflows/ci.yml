@@ -1,0 +1,165 @@
+# CI/CD del formulario de propuestas al Estatuto.
+#
+#   develop ── push ──► Pruebas ──► Desplegar en QA            (runner self-hosted del servidor QA)
+#   main ◄── PR desde develop (solo lo fusiona Coopetrol-tec)
+#   main ──── push ──► Pruebas ──► Desplegar en producción     (espera aprobación en el entorno
+#                                   └─► Publicar tag vX.Y.Z      "produccion"; runner Windows)
+#
+# Ver docs/FLUJO_CI_CD.md para la configuración de GitHub y de los runners.
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# En PR se cancela la ejecución anterior; en main/develop no, para no cortar un despliegue.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Compilar código Python
+        run: python -m compileall -q app.py notificaciones.py seguridad.py serve.py utils
+
+      - name: Validar scripts de despliegue
+        run: bash -n deploy/qa.sh && bash -n deploy/qa/estatutos-qa-deploy
+
+      - name: Ejecutar pruebas
+        run: python -m pytest -q tests
+
+  version:
+    name: Versión nueva
+    # Solo en PR hacia main: deben venir de develop y traer un número de versión sin publicar.
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: El PR debe venir de develop
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "develop" ]; then
+            echo "::error::Los PR a main solo pueden venir de develop (este viene de '$HEAD_REF')."
+            exit 1
+          fi
+
+      - name: La versión no debe estar publicada
+        run: |
+          v="v$(tr -d '[:space:]' < VERSION)"
+          if git rev-parse -q --verify "refs/tags/$v" >/dev/null; then
+            echo "::error::La versión $v ya existe. Suba el número en VERSION y CHANGELOG.md en develop."
+            exit 1
+          fi
+          echo "Al fusionar se publicará la versión $v"
+
+  desplegar-qa:
+    name: Desplegar en QA
+    needs: pruebas
+    # Solo pushes a develop del propio repositorio (nunca PR ni forks: el runner es interno).
+    # CICD_QA_ACTIVO=true (variable del repositorio) activa el despliegue una vez instalado el runner.
+    if: vars.CICD_QA_ACTIVO == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.repository == 'Coopetrol-tec/projects_calidad_frm_estatuto'
+    runs-on: [self-hosted, linux, estatutos-qa]
+    environment:
+      name: qa
+      url: http://192.168.252.59:8546/estatutos/
+    concurrency:
+      group: deploy-qa
+      cancel-in-progress: false
+    timeout-minutes: 30
+    steps:
+      - name: Checkout del commit validado
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
+
+      # Respalda la base, construye la imagen X.Y.Z-dev.<commit>, reemplaza el contenedor y,
+      # si no responde, vuelve sola a la versión anterior.
+      - name: Desplegar
+        run: sudo -n /usr/local/sbin/estatutos-qa-deploy "$GITHUB_SHA" "$GITHUB_WORKSPACE"
+
+  desplegar-produccion:
+    name: Desplegar en producción
+    needs: pruebas
+    # CICD_PRODUCCION_ACTIVO=true se define SOLO después de exigir aprobación en el entorno.
+    if: vars.CICD_PRODUCCION_ACTIVO == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'Coopetrol-tec/projects_calidad_frm_estatuto'
+    runs-on: [self-hosted, windows, estatutos-prod]
+    # El entorno "produccion" exige la aprobación de Coopetrol-tec antes de ejecutar este job.
+    environment:
+      name: produccion
+      url: https://sistemas.coopetrol.coop:8546/estatutos/
+    concurrency:
+      group: deploy-produccion
+      cancel-in-progress: false
+    timeout-minutes: 90
+    steps:
+      # No se hace checkout en la carpeta del runner: se despliega desde el clon del servidor,
+      # que tiene .env.production. Primero se cambia al commit aprobado para ejecutar la versión
+      # de actualizar.ps1 que corresponde a ese commit.
+      - name: Desplegar
+        shell: powershell
+        env:
+          APP_DIR: ${{ vars.PROD_APP_DIR }}
+        run: |
+          if (-not $env:APP_DIR) { Write-Host "::error::Defina la variable del repositorio PROD_APP_DIR."; exit 1 }
+          Set-Location $env:APP_DIR
+          git fetch --tags origin
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          git checkout -q --detach $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\actualizar.ps1 -Version $env:GITHUB_SHA -NoInteractivo
+          exit $LASTEXITCODE
+
+  publicar-version:
+    name: Publicar tag de versión
+    needs: desplegar-produccion
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Crear tag vX.Y.Z
+        run: |
+          v="v$(tr -d '[:space:]' < VERSION)"
+          if git rev-parse -q --verify "refs/tags/$v" >/dev/null; then
+            echo "El tag $v ya existe; no se crea de nuevo."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$v" -m "Versión ${v#v} desplegada en producción"
+          git push origin "$v"
+          echo "Publicado $v"

@@ -251,3 +251,8 @@ Para una prueba local SQLite es suficiente. Antes de publicar en producción se 
 - migrar a PostgreSQL;
 - proteger el panel administrativo con controles adicionales;
 - establecer una política institucional de respaldo y retención de datos.
+
+## Flujo de trabajo y despliegue
+
+Ramas `main` (producción) y `develop` (QA) con CI/CD automático: ver [docs/FLUJO_CI_CD.md](docs/FLUJO_CI_CD.md).
+Historial de versiones: [CHANGELOG.md](CHANGELOG.md).

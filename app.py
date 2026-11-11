@@ -42,7 +42,7 @@ INSTANCE_DIR = BASE_DIR / "instance"
 PAGE_IMAGES_DIR = BASE_DIR / "static" / "generated" / "pages"
 STATUTE_PDF = DATA_DIR / "estatuto.pdf"
 STATUTE_STRUCTURE = DATA_DIR / "estatuto_structure.json"
-SQLITE_PATH = INSTANCE_DIR / "app.db"
+SQLITE_PATH = Path(os.getenv("SQLITE_PATH") or INSTANCE_DIR / "app.db")  # configurable para pruebas
 
 for directory in (DATA_DIR, INSTANCE_DIR, PAGE_IMAGES_DIR):
     directory.mkdir(parents=True, exist_ok=True)

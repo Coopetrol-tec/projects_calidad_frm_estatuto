@@ -20,7 +20,9 @@ param(
     [string]$Version = "",
     # Vuelve a la versión anterior (o a la indicada en -A) sin reconstruir.
     [switch]$Revertir,
-    [string]$A = ""
+    [string]$A = "",
+    # Para el CI: nunca pregunta; si no puede respaldar la base, se detiene.
+    [switch]$NoInteractivo
 )
 
 $ErrorActionPreference = "Stop"
@@ -172,7 +174,7 @@ if ($usaPostgres) {
         Info "Respaldo de la base: $respaldo"
     } else {
         Aviso "pg_dump no está instalado en el servidor: haga un respaldo manual de PostgreSQL antes de continuar."
-        $resp = Read-Host "¿Continuar sin respaldo automático? (s/N)"
+        $resp = if ($NoInteractivo) { "n" } else { Read-Host "¿Continuar sin respaldo automático? (s/N)" }
         if ($resp -notmatch '^[sS]') { docker tag $Anterior $Imagen | Out-Null; Fallar "Despliegue cancelado." }
     }
 } else {
@@ -186,7 +188,7 @@ if ($usaPostgres) {
         Info "Respaldo de la base: volumen ${Vol}_instance\$respaldo"
     } else {
         Aviso "No se pudo respaldar la base SQLite ($salida)."
-        $resp = Read-Host "¿Continuar sin respaldo? (s/N)"
+        $resp = if ($NoInteractivo) { "n" } else { Read-Host "¿Continuar sin respaldo? (s/N)" }
         if ($resp -notmatch '^[sS]') { docker tag $Anterior $Imagen | Out-Null; Fallar "Despliegue cancelado." }
     }
 }

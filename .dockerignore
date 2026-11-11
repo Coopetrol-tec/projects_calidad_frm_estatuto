@@ -33,3 +33,7 @@ deploy
 backups
 .qa_version_*
 .version_*
+.github
+tests
+docs
+requirements-dev.txt

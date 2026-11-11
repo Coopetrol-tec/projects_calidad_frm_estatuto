@@ -1,0 +1,4 @@
+# Dependencias solo para pruebas (CI). No se instalan en la imagen de producción.
+-r requirements.txt
+pytest>=8,<9
+aiosmtpd>=1.4,<2
