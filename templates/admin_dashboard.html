@@ -56,7 +56,7 @@
         <p id="adminPageSubtitle">Estado general del proceso de participación estatutaria.</p>
       </div>
       <div class="admin-topbar__meta">
-        <span class="database-pill">{{ database_mode }}</span>
+        <span class="database-pill">{{ database_mode }} · v{{ app_version }}</span>
         <span class="active-pill"><i></i> Formulario activo</span>
       </div>
     </header>
@@ -137,12 +137,13 @@
     <div class="admin-view" data-admin-view="asociados">
       <section class="dashboard-panel form-panel-admin">
         <div class="dashboard-panel__head dashboard-panel__head--border">
-          <div><span class="card-kicker">VALIDACIÓN DE INGRESO</span><h2>Base de asociados</h2><p>Cargue la base autorizada con cédula, nombre y fecha de expedición.</p></div>
-          <span class="count-pill">{{ stats.associates }} registros</span>
+          <div><span class="card-kicker">VALIDACIÓN DE INGRESO</span><h2>Base de asociados</h2><p>Cargue la base autorizada con cédula, nombre, fecha de expedición y correo electrónico.</p></div>
+          <span class="count-pill">{{ stats.associates }} registros · {{ stats.associates_with_email }} con correo</span>
         </div>
         <form method="post" action="{{ url_for('admin_load_associates') }}" enctype="multipart/form-data" class="admin-form">
           <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-          <label class="field"><span>Archivo de asociados</span><input type="file" name="base_asociados" accept=".csv,.xlsx,.xlsm" required><small>El archivo debe contener las columnas “cedula”, “nombre” y “fecha_expedicion”.</small></label>
+          <label class="field"><span>Archivo de asociados</span><input type="file" name="base_asociados" accept=".csv,.xlsx,.xlsm" required><small>El archivo debe contener las columnas “cedula”, “nombre” y “fecha_expedicion”. La columna “correo” es opcional y se usa para enviar la confirmación al finalizar el registro; en modo “Agregar”, una fila sin correo conserva el que ya estaba cargado.</small></label>
+          <p class="field"><small>Notificaciones enviadas: {{ stats.notifications_sent }} · Con error: {{ stats.notifications_failed }}</small></p>
           <label class="field"><span>Modo de carga</span><select name="modo"><option value="reemplazar">Reemplazar la base vigente</option><option value="agregar">Agregar a la base actual</option></select></label>
           <div><button class="btn btn--primary" type="submit">Cargar base</button></div>
         </form>

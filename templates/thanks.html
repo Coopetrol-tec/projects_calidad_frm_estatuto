@@ -18,9 +18,9 @@
     </div>
     <div class="button-row button-row--center">
       <a class="btn btn--primary" href="{{ url_for('proposal') }}">Registrar otra recomendación</a>
-      <form method="post" action="{{ url_for('member_logout') }}">
+      <form method="post" action="{{ url_for('member_finish') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn--secondary" type="submit">Finalizar</button>
+        <button class="btn btn--secondary" type="submit">Finalizar registro</button>
       </form>
     </div>
   </article>

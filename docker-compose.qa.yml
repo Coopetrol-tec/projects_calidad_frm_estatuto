@@ -20,7 +20,9 @@ services:
 
   app:
     build: .
-    image: coopetrol/estatutos:qa
+    # Cada versión queda como una imagen propia (coopetrol/estatutos:1.1.0-rc.1, ...)
+    # para poder volver a la anterior sin reconstruir. Use deploy/qa.sh.
+    image: coopetrol/estatutos:${APP_VERSION:-qa}
     restart: unless-stopped
     env_file: .env.qa
     depends_on:

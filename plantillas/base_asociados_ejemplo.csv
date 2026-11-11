@@ -1,2 +1,2 @@
-﻿cedula,nombre,fecha_expedicion
-1020304050,Nombre Asociado Ejemplo,15/06/2015
+﻿cedula,nombre,fecha_expedicion,correo
+1020304050,Nombre Asociado Ejemplo,15/06/2015,asociado.ejemplo@correo.com
