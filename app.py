@@ -33,6 +33,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+import notificaciones
 from utils.statute_parser import process_statute_pdf
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -110,6 +111,13 @@ if IS_PRODUCTION and not app.config["ADMIN_PASSWORD_HASH"]:
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 audit_log = logging.getLogger("estatutos.auditoria")
+
+# Versión desplegada: permite saber qué está corriendo y a cuál volver si algo falla.
+try:
+    APP_VERSION = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip() or "desconocida"
+except OSError:
+    APP_VERSION = "desconocida"
+audit_log.info("Iniciando aplicación versión=%s", APP_VERSION)
 
 # Detrás de un proxy inverso (nginx/IIS) se respetan X-Forwarded-For/Proto/Host/Port.
 if _env_flag("BEHIND_PROXY", False):
@@ -338,6 +346,7 @@ def inject_globals():
         "csp_nonce": csp_nonce,
         "settings": get_settings(),
         "app_name": app.config["APP_NAME"],
+        "app_version": APP_VERSION,
     }
 
 
@@ -505,6 +514,8 @@ def _associate_header_indexes(header):
         "cedula": {"cedula", "cédula", "documento", "identificacion", "identificación", "numero_documento"},
         "nombre": {"nombre", "nombres", "nombre_completo", "nombres_apellidos", "nombres y apellidos"},
         "fecha_expedicion": {"fecha_expedicion", "fecha expedicion", "fecha de expedicion", "fecha_expedición", "fecha de expedición"},
+        # Opcional: si no viene, se conserva el correo ya cargado.
+        "correo": {"correo", "correo_electronico", "correo electronico", "correo electrónico", "correo_electrónico", "email", "e-mail", "mail"},
     }
     result = {}
     for field, choices in aliases.items():
@@ -538,12 +549,13 @@ def _read_csv_associates(file_storage):
     rows = []
     for row in reader:
         def value(field):
-            pos = idx[field]
-            return row[pos] if pos < len(row) else None
+            pos = idx.get(field)
+            return row[pos] if pos is not None and pos < len(row) else None
         rows.append({
             "cedula": value("cedula"),
             "nombre": value("nombre"),
             "fecha_expedicion": value("fecha_expedicion"),
+            "correo": value("correo"),
         })
     return rows
 
@@ -560,12 +572,13 @@ def _read_excel_associates(file_storage):
     rows = []
     for row in iterator:
         def value(field):
-            pos = idx[field]
-            return row[pos] if pos < len(row) else None
+            pos = idx.get(field)
+            return row[pos] if pos is not None and pos < len(row) else None
         rows.append({
             "cedula": value("cedula"),
             "nombre": value("nombre"),
             "fecha_expedicion": value("fecha_expedicion"),
+            "correo": value("correo"),
         })
     return rows
 
@@ -583,8 +596,24 @@ def ensure_feature_schema():
         if USE_POSTGRES:
             cur.execute("ALTER TABLE associates ADD COLUMN IF NOT EXISTS nombre TEXT")
             cur.execute("ALTER TABLE associates ADD COLUMN IF NOT EXISTS fecha_expedicion DATE")
+            cur.execute("ALTER TABLE associates ADD COLUMN IF NOT EXISTS correo TEXT")
             for column in PROPOSAL_EXTRA_COLUMNS:
                 cur.execute(f"ALTER TABLE proposals ADD COLUMN IF NOT EXISTS {column} TEXT")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id BIGSERIAL PRIMARY KEY,
+                    cedula TEXT NOT NULL,
+                    destino TEXT,
+                    proposal_ids TEXT NOT NULL,
+                    estado TEXT NOT NULL,
+                    intentos INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    created_at TEXT NOT NULL,
+                    sent_at TEXT
+                )
+                """
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS statute_restrictions (
@@ -605,10 +634,27 @@ def ensure_feature_schema():
                 cur.execute("ALTER TABLE associates ADD COLUMN nombre TEXT")
             if "fecha_expedicion" not in existing:
                 cur.execute("ALTER TABLE associates ADD COLUMN fecha_expedicion TEXT")
+            if "correo" not in existing:
+                cur.execute("ALTER TABLE associates ADD COLUMN correo TEXT")
             proposal_columns = {row[1] for row in cur.execute("PRAGMA table_info(proposals)").fetchall()}
             for column in PROPOSAL_EXTRA_COLUMNS:
                 if column not in proposal_columns:
                     cur.execute(f"ALTER TABLE proposals ADD COLUMN {column} TEXT")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cedula TEXT NOT NULL,
+                    destino TEXT,
+                    proposal_ids TEXT NOT NULL,
+                    estado TEXT NOT NULL,
+                    intentos INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    created_at TEXT NOT NULL,
+                    sent_at TEXT
+                )
+                """
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS statute_restrictions (
@@ -862,6 +908,11 @@ def proposal():
                 )
                 proposal_id = cur.lastrowid
 
+            # Registros de esta sesión: se confirman en un solo correo al finalizar.
+            session_ids = list(session.get("proposal_ids") or [])
+            session_ids.append(int(proposal_id))
+            session["proposal_ids"] = session_ids[-100:]
+
             if is_ajax:
                 updated_count = int(
                     fetchone("SELECT COUNT(*) AS total FROM proposals WHERE cedula = ?", (cedula,))["total"]
@@ -916,6 +967,115 @@ def member_logout():
     return redirect(url_for("index"))
 
 
+def _record_notification_result(notification_id):
+    """Callback del hilo de envío: guarda el resultado con su propia conexión."""
+
+    def done(estado, intentos, error):
+        conn = None
+        try:
+            conn = _connect_database()
+            _direct_execute(
+                conn,
+                "UPDATE notifications SET estado = ?, intentos = ?, error = ?, sent_at = ? WHERE id = ?",
+                (
+                    estado, intentos, error or None,
+                    datetime.now().isoformat(timespec="seconds") if estado == "enviado" else None,
+                    notification_id,
+                ),
+            )
+            conn.commit()
+        except Exception:
+            audit_log.exception("No fue posible registrar el resultado de la notificación id=%s", notification_id)
+        finally:
+            if conn is not None:
+                conn.close()
+        audit_log.info("Notificación id=%s estado=%s intentos=%s", notification_id, estado, intentos)
+
+    return done
+
+
+def notify_registration_finished(cedula, proposal_ids):
+    """Registra y envía (en segundo plano) la confirmación del registro.
+
+    Devuelve el correo enmascarado si el envío quedó en curso, o "" si no se envía.
+    Nunca lanza excepción: un fallo de correo no debe impedir finalizar el registro.
+    """
+    try:
+        placeholders = ", ".join("?" for _ in proposal_ids)
+        proposals = [
+            dict(row) for row in fetchall(
+                "SELECT id, capitulo, articulo, paragrafo, numeral, literal, tipo_cambio, created_at "
+                f"FROM proposals WHERE cedula = ? AND id IN ({placeholders}) ORDER BY id",
+                (cedula, *proposal_ids),
+            )
+        ]
+        if not proposals:
+            return ""
+
+        associate = fetchone("SELECT nombre, correo FROM associates WHERE cedula = ?", (cedula,))
+        nombre = ((associate["nombre"] if associate else "") or session.get("member_name") or "").strip()
+        destino = notificaciones.normalizar_correo(associate["correo"] if associate else "")
+        ids_text = ",".join(str(p["id"]) for p in proposals)
+        now = datetime.now().isoformat(timespec="seconds")
+
+        # Doble clic o reenvío del formulario: la cookie de sesión aún trae los mismos IDs.
+        if fetchone(
+            "SELECT id FROM notifications WHERE cedula = ? AND proposal_ids = ?",
+            (cedula, ids_text),
+        ):
+            return ""
+
+        if not destino:
+            estado = "sin_destino"
+        elif not notificaciones.correo_configurado():
+            estado = "deshabilitado"
+        else:
+            estado = "pendiente"
+
+        insert_sql = (
+            "INSERT INTO notifications (cedula, destino, proposal_ids, estado, intentos, created_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)"
+        )
+        params = (cedula, destino or None, ids_text, estado, now)
+        if USE_POSTGRES:
+            cur = execute(insert_sql + " RETURNING id", params, commit=False)
+            notification_id = cur.fetchone()["id"]
+            get_db().commit()
+        else:
+            notification_id = execute(insert_sql, params).lastrowid
+
+        audit_log.info(
+            "Finalización de registro notificacion=%s estado=%s propuestas=%s destino=%s",
+            notification_id, estado, ids_text, notificaciones.enmascarar_correo(destino),
+        )
+        if estado != "pendiente":
+            return ""
+
+        message = notificaciones.construir_mensaje(destino, nombre, proposals, app.config["APP_NAME"])
+        notificaciones.enviar_en_segundo_plano(message, _record_notification_result(notification_id))
+        return notificaciones.enmascarar_correo(destino)
+    except Exception:
+        audit_log.exception("Error preparando la notificación de finalización de registro")
+        return ""
+
+
+@app.route("/finalizar", methods=["POST"])
+def member_finish():
+    """Botón "Finalizar registro": notifica al asociado y cierra la sesión."""
+    cedula = session.get("member_cedula")
+    proposal_ids = [int(i) for i in (session.get("proposal_ids") or []) if str(i).isdigit()]
+    masked = ""
+    if cedula and proposal_ids:
+        masked = notify_registration_finished(cedula, proposal_ids)
+
+    session.clear()
+    if masked:
+        flash(f"Registro finalizado. Enviamos la confirmación a su correo {masked}.", "success")
+    else:
+        flash("Registro finalizado.", "success")
+    return redirect(url_for("index"))
+
+
 # -----------------------------------------------------------------------------
 # Administration
 # -----------------------------------------------------------------------------
@@ -955,6 +1115,15 @@ def admin_dashboard():
 
     stats = {
         "associates": int(fetchone("SELECT COUNT(*) AS total FROM associates")["total"]),
+        "associates_with_email": int(fetchone(
+            "SELECT COUNT(*) AS total FROM associates WHERE correo IS NOT NULL AND correo <> ''"
+        )["total"]),
+        "notifications_sent": int(fetchone(
+            "SELECT COUNT(*) AS total FROM notifications WHERE estado = 'enviado'"
+        )["total"]),
+        "notifications_failed": int(fetchone(
+            "SELECT COUNT(*) AS total FROM notifications WHERE estado = 'error'"
+        )["total"]),
         "proposals": int(fetchone("SELECT COUNT(*) AS total FROM proposals")["total"]),
         "unique_submitters": int(fetchone("SELECT COUNT(DISTINCT cedula) AS total FROM proposals")["total"]),
         "repeat_submitters": int(fetchone(
@@ -1118,6 +1287,8 @@ def admin_load_associates():
     created_at = datetime.now().isoformat(timespec="seconds")
     cleaned = {}
     ignored = 0
+    with_email = 0
+    invalid_email = 0
     for row in raw_rows:
         cedula = normalize_cedula(row.get("cedula"))
         nombre = str(row.get("nombre") or "").strip()
@@ -1126,7 +1297,13 @@ def admin_load_associates():
             ignored += 1
             continue
         fecha_db = date.fromisoformat(fecha_iso) if USE_POSTGRES else fecha_iso
-        cleaned[cedula] = (cedula, nombre, fecha_db, created_at)
+        raw_email = str(row.get("correo") or "").strip()
+        correo = notificaciones.normalizar_correo(raw_email) or None
+        if correo:
+            with_email += 1
+        elif raw_email:
+            invalid_email += 1
+        cleaned[cedula] = (cedula, nombre, fecha_db, correo, created_at)
 
     values = list(cleaned.values())
     if not values:
@@ -1141,11 +1318,12 @@ def admin_load_associates():
         cur.executemany(
             _sql(
                 """
-                INSERT INTO associates(cedula, nombre, fecha_expedicion, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO associates(cedula, nombre, fecha_expedicion, correo, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(cedula) DO UPDATE SET
                     nombre = excluded.nombre,
                     fecha_expedicion = excluded.fecha_expedicion,
+                    correo = COALESCE(excluded.correo, associates.correo),
                     created_at = excluded.created_at
                 """
             ),
@@ -1157,11 +1335,12 @@ def admin_load_associates():
         raise
 
     audit_log.info(
-        "Base de asociados cargada modo=%s validos=%s omitidos=%s ip=%s",
-        mode, len(values), ignored, client_ip(),
+        "Base de asociados cargada modo=%s validos=%s omitidos=%s con_correo=%s correo_invalido=%s ip=%s",
+        mode, len(values), ignored, with_email, invalid_email, client_ip(),
     )
     flash(
         f"Base actualizada: {len(values)} asociados válidos. Filas omitidas: {ignored}. "
+        f"Con correo electrónico: {with_email}. Correos con formato inválido (no cargados): {invalid_email}. "
         "La carga se realizó de forma masiva.",
         "success",
     )

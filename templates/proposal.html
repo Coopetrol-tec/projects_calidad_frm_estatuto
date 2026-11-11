@@ -183,7 +183,7 @@
       <p>Registro <strong id="successProposalId">—</strong>. Puede registrar otra recomendación sin volver a validar sus datos.</p>
       <div class="proposal-modal__actions proposal-modal__actions--center">
         <button class="btn btn--primary btn--large" id="newProposalButton" type="button">Registrar otra recomendación</button>
-        <form method="post" action="{{ url_for('member_logout') }}">
+        <form method="post" action="{{ url_for('member_finish') }}">
           <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn--outline" type="submit">Finalizar registro</button>
         </form>

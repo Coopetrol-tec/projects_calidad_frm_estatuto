@@ -184,6 +184,47 @@ El script `deploy\actualizar.ps1` despliega también un entorno de QA, separado 
 `.env.qa` se crea a partir de `.env.production.windows.example`, con su **propia** `SECRET_KEY`
 y, si usa PostgreSQL, una base distinta a la de producción. El script no toca Tomcat en QA.
 
+### Versiones y reversión (QA en Linux)
+
+Cada versión es un tag de git (`v1.1.0-rc.1`) y su número está en el archivo `VERSION`.
+`deploy/qa.sh` construye una imagen por versión (`coopetrol/estatutos:1.1.0-rc.1`), así las
+anteriores quedan en el servidor y volver atrás toma segundos, sin reconstruir:
+
+```bash
+sudo deploy/qa.sh estado                  # versión actual, anterior, imágenes y copias de la base
+sudo deploy/qa.sh desplegar v1.1.0-rc.1   # respalda la base, despliega el tag y verifica
+sudo deploy/qa.sh revertir                # vuelve a la versión anterior
+sudo deploy/qa.sh revertir 1.0.0          # o a una versión concreta
+```
+
+- `desplegar` guarda antes una copia de PostgreSQL en `backups/` y, si la versión nueva no
+  responde, vuelve sola a la anterior.
+- La primera vez, la versión en ejecución es la imagen `coopetrol/estatutos:qa`; `revertir`
+  vuelve a ella.
+- El script deja el repositorio en el tag desplegado (HEAD separado). Para volver a la rama:
+  `git checkout main`.
+- No use `docker compose -f docker-compose.qa.yml up -d` sin `APP_VERSION`: levantaría la
+  imagen `:qa` (la anterior al versionado).
+- Restaurar la base (solo si una versión dañara datos):
+  `gunzip -c backups/<archivo>.sql.gz | sudo docker compose -f docker-compose.qa.yml exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'`
+  (la copia incluye `DROP ... IF EXISTS`: reemplaza el contenido actual por el de la copia).
+
+### Notificaciones por correo
+
+Al pulsar **Finalizar registro**, la aplicación envía al asociado un correo que confirma las
+propuestas registradas en esa sesión. Requisitos:
+
+1. Agregar las variables `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
+   `EMAIL_USE_TLS`, `EMAIL_USE_SSL` y `DEFAULT_FROM_EMAIL` a `.env.qa` / `.env.production`
+   (ver los archivos `.env*.example`) y **recrear** el contenedor.
+2. Cargar la base de asociados con la columna opcional `correo`
+   (ver `plantillas/base_asociados_ejemplo.csv`).
+3. Permitir la salida del servidor hacia el servidor SMTP (puerto 587 o 465).
+
+El envío se hace en segundo plano con reintentos; cada intento queda en la tabla
+`notifications` (`estado`: `pendiente`, `enviado`, `error`, `sin_destino`, `deshabilitado`).
+Un fallo de correo nunca impide finalizar el registro.
+
 ### Requisitos de seguridad del arranque
 
 La imagen se ejecuta con `APP_ENV=production` y **no arranca** si:

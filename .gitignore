@@ -8,3 +8,6 @@ instance/*.db
 .env.production.bak*
 certs/
 .env.qa
+backups/
+.qa_version_actual
+.qa_version_anterior
