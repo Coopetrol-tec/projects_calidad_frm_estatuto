@@ -157,7 +157,7 @@ Copy-Item deploy\tomcat\estatutos.war C:\prod\tomcat9java8\apache-tomcat-9.0.85\
 ```powershell
 cd C:\Users\Administrador\Documents\estatutos\Frm_Estatuto
 powershell -ExecutionPolicy Bypass -File deploy\actualizar.ps1                   # última versión de la rama
-powershell -ExecutionPolicy Bypass -File deploy\actualizar.ps1 -Version v1.1.0   # un tag concreto
+powershell -ExecutionPolicy Bypass -File deploy\actualizar.ps1 -Version v1.1.1   # un tag concreto
 ```
 
 Cada versión queda como imagen `coopetrol/estatutos:windows-<versión>` (el número sale del archivo
@@ -209,7 +209,7 @@ anteriores quedan en el servidor y volver atrás toma segundos, sin reconstruir:
 
 ```bash
 sudo deploy/qa.sh estado                  # versión actual, anterior, imágenes y copias de la base
-sudo deploy/qa.sh desplegar v1.1.0   # respalda la base, despliega el tag y verifica
+sudo deploy/qa.sh desplegar v1.1.1   # respalda la base, despliega el tag y verifica
 sudo deploy/qa.sh revertir                # vuelve a la versión anterior
 sudo deploy/qa.sh revertir 1.0.0          # o a una versión concreta
 ```

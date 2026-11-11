@@ -4,6 +4,15 @@ Cada versión desplegada corresponde a un tag de git (`vX.Y.Z`) y a una imagen D
 `coopetrol/estatutos:X.Y.Z`. Para volver a una versión anterior ver
 "Versiones y reversión" en `DESPLIEGUE_DOCKER.md`.
 
+## 1.1.1 — 2026-11-11
+
+- Mejoras visuales (PR #3): "Validar" en el paso 1, botón "Descargar Estatuto Aquí", ancho
+  mínimo en botones pequeños.
+- Correo de confirmación: cierre "una mejor cooperativa" y firma de la Comisión de reforma de
+  estatutos y actualización del código de buen gobierno de COOPETROL.
+- Título por defecto del Estatuto: "Estatuto Coopetrol" (solo aplica a bases nuevas; en las
+  existentes se cambia en el panel, "Nombre visible del documento").
+
 ## 1.1.0 — 2026-11-11 (producción)
 
 Versión validada en QA (1.1.0-rc.4) que pasa a producción. Incluye todo lo de 1.1.0-rc.1 a rc.4.

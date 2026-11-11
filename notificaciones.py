@@ -127,7 +127,7 @@ def construir_mensaje(destino: str, nombre: str, propuestas, app_name: str) -> E
         lineas.append(
             f"- Registro #{p['id']} | {_referencia(p)} | {p.get('tipo_cambio') or ''} | {_fecha(p.get('created_at'))}"
         )
-    lineas += ["", cierre, "", "Atentamente,", " Comisión de reforma de estatutos y actualización del código de buen gobierno de COOPETROL", "", pie]
+    lineas += ["", cierre, "", "Atentamente,", "Comisión de reforma de estatutos y actualización del código de buen gobierno de COOPETROL", "", pie]
     texto = "\n".join(lineas)
 
     # HTML (todos los datos se escapan)
@@ -157,7 +157,7 @@ def construir_mensaje(destino: str, nombre: str, propuestas, app_name: str) -> E
 {filas}
 </table>
 <p style="margin:16px 0 0;padding:12px;background:#f9fafb;border-left:4px solid #0B8F3A">{escape(cierre)}</p>
-<p style="margin:20px 0 0">Atentamente,<br><strong> Comisión de reforma de estatutos y actualización del código de buen gobierno de COOPETROL</strong></p>
+<p style="margin:20px 0 0">Atentamente,<br><strong>Comisión de reforma de estatutos y actualización del código de buen gobierno de COOPETROL</strong></p>
 </td></tr>
 <tr><td style="padding:12px 24px;background:#f9fafb;color:#6b7280;font-size:12px">{escape(pie)}</td></tr>
 </table>

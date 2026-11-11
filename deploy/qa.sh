@@ -2,7 +2,7 @@
 # Despliegue versionado del entorno de QA en Linux (docker-compose.qa.yml).
 #
 # Uso (desde la carpeta del proyecto en el servidor):
-#   sudo deploy/qa.sh desplegar v1.1.0   # despliega un tag de git
+#   sudo deploy/qa.sh desplegar v1.1.1   # despliega un tag de git
 #   sudo deploy/qa.sh revertir                # vuelve a la versión anterior
 #   sudo deploy/qa.sh revertir 1.0.0          # vuelve a una versión concreta
 #   sudo deploy/qa.sh estado                  # versión actual, anterior e imágenes disponibles
@@ -69,7 +69,7 @@ respaldar_base() {  # $1 = etiqueta para el nombre del archivo
 
 desplegar() {
     local tag="${1:-}"
-    [[ -n "$tag" ]] || fallar "Indique el tag de git a desplegar, p. ej.: deploy/qa.sh desplegar v1.1.0"
+    [[ -n "$tag" ]] || fallar "Indique el tag de git a desplegar, p. ej.: deploy/qa.sh desplegar v1.1.1"
     [[ -f .env.qa ]] || fallar "No existe .env.qa en el servidor."
     [[ -z "$(git status --porcelain --untracked-files=no)" ]] || fallar "Hay cambios locales sin commit en el servidor."
 
