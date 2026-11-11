@@ -4,6 +4,11 @@ Cada versión desplegada corresponde a un tag de git (`vX.Y.Z`) y a una imagen D
 `coopetrol/estatutos:X.Y.Z`. Para volver a una versión anterior ver
 "Versiones y reversión" en `DESPLIEGUE_DOCKER.md`.
 
+## 1.1.0-rc.4 (QA) — 2026-11-11
+
+- Nuevo texto del correo de confirmación (agradecimiento por participar en la reforma);
+  se conserva la tabla con el detalle de las propuestas.
+
 ## 1.1.0-rc.3 (QA) — 2026-11-11
 
 - Formulario de validación: el número de documento solo admite números, máximo 10 dígitos

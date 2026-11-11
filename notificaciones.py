@@ -105,23 +105,29 @@ def construir_mensaje(destino: str, nombre: str, propuestas, app_name: str) -> E
         + (" reforma" if not plural else "s reformas")
         + " al Estatuto - COOPETROL"
     )
-    intro = (
-        f"Le confirmamos que el registro de su{'s' if plural else ''} "
-        f"propuesta{'s' if plural else ''} de reforma al Estatuto de COOPETROL fue exitoso."
+    agradecimiento = (
+        "Reciba nuestro más sincero agradecimiento por participar en el proceso de reforma "
+        "al Estatuto de COOPETROL. Su interés, compromiso y aportes contribuyen al "
+        "crecimiento y fortalecimiento de nuestra cooperativa."
     )
-    nota = (
-        "Su solicitud de modificación, eliminación o adición será analizada por el "
-        "Consejo de Administración."
+    confirmacion = (
+        "Le confirmamos que sus propuestas fueron registradas exitosamente."
+        if plural else
+        "Le confirmamos que su propuesta fue registrada exitosamente."
+    )
+    cierre = (
+        "Gracias por ser protagonista de este proceso y ayudarnos a construir juntos "
+        "una mejor COOPETROL."
     )
     pie = "Este es un mensaje automático; por favor no responda a este correo."
 
     # Texto plano
-    lineas = [f"Estimado(a) {nombre}:", "", intro, ""]
+    lineas = [f"Apreciado(a) {nombre}:", "", agradecimiento, "", confirmacion, ""]
     for p in propuestas:
         lineas.append(
             f"- Registro #{p['id']} | {_referencia(p)} | {p.get('tipo_cambio') or ''} | {_fecha(p.get('created_at'))}"
         )
-    lineas += ["", nota, "", "Cordialmente,", "COOPETROL", "", pie]
+    lineas += ["", cierre, "", "Cordialmente,", "COOPETROL", "", pie]
     texto = "\n".join(lineas)
 
     # HTML (todos los datos se escapan)
@@ -141,15 +147,16 @@ def construir_mensaje(destino: str, nombre: str, propuestas, app_name: str) -> E
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden">
 <tr><td style="background:#0B8F3A;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">{escape(app_name)}</td></tr>
 <tr><td style="padding:24px">
-<p style="margin:0 0 12px">Estimado(a) <strong>{escape(nombre)}</strong>:</p>
-<p style="margin:0 0 16px">{escape(intro)}</p>
+<p style="margin:0 0 12px">Apreciado(a) <strong>{escape(nombre)}</strong>:</p>
+<p style="margin:0 0 12px">{escape(agradecimiento)}</p>
+<p style="margin:0 0 16px">{escape(confirmacion)}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px">
 <tr style="background:#f0fdf4;text-align:left">
 <th style="padding:8px">Registro</th><th style="padding:8px">Apartado</th><th style="padding:8px">Tipo</th><th style="padding:8px">Fecha</th>
 </tr>
 {filas}
 </table>
-<p style="margin:16px 0 0;padding:12px;background:#f9fafb;border-left:4px solid #0B8F3A">{escape(nota)}</p>
+<p style="margin:16px 0 0;padding:12px;background:#f9fafb;border-left:4px solid #0B8F3A">{escape(cierre)}</p>
 <p style="margin:20px 0 0">Cordialmente,<br><strong>COOPETROL</strong></p>
 </td></tr>
 <tr><td style="padding:12px 24px;background:#f9fafb;color:#6b7280;font-size:12px">{escape(pie)}</td></tr>

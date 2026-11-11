@@ -186,13 +186,13 @@ y, si usa PostgreSQL, una base distinta a la de producción. El script no toca T
 
 ### Versiones y reversión (QA en Linux)
 
-Cada versión es un tag de git (`v1.1.0-rc.3`) y su número está en el archivo `VERSION`.
-`deploy/qa.sh` construye una imagen por versión (`coopetrol/estatutos:1.1.0-rc.3`), así las
+Cada versión es un tag de git (`v1.1.0-rc.4`) y su número está en el archivo `VERSION`.
+`deploy/qa.sh` construye una imagen por versión (`coopetrol/estatutos:1.1.0-rc.4`), así las
 anteriores quedan en el servidor y volver atrás toma segundos, sin reconstruir:
 
 ```bash
 sudo deploy/qa.sh estado                  # versión actual, anterior, imágenes y copias de la base
-sudo deploy/qa.sh desplegar v1.1.0-rc.3   # respalda la base, despliega el tag y verifica
+sudo deploy/qa.sh desplegar v1.1.0-rc.4   # respalda la base, despliega el tag y verifica
 sudo deploy/qa.sh revertir                # vuelve a la versión anterior
 sudo deploy/qa.sh revertir 1.0.0          # o a una versión concreta
 ```
