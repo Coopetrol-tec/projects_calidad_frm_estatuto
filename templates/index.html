@@ -27,7 +27,8 @@
         <div class="validation-row">
           <label class="field">
             <span>Número de documento</span>
-            <input name="cedula" inputmode="numeric" autocomplete="off" placeholder="Ej. 123456789" required>
+            <input id="cedula" name="cedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej. 123456789"
+                   pattern="[0-9]{1,10}" title="Solo números, máximo 10 dígitos." required>
           </label>
           <label class="field">
             <span>Fecha de expedición</span>
@@ -52,4 +53,23 @@
     </section>
   </div>
 </section>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+  // Número de documento: solo dígitos y máximo 10 (también al pegar o autocompletar).
+  (function () {
+    var campo = document.getElementById('cedula');
+    if (!campo) return;
+    function limpiar() {
+      var limpio = campo.value.replace(/\D/g, '').slice(0, 10);
+      if (campo.value !== limpio) campo.value = limpio;
+      campo.setCustomValidity('');
+    }
+    campo.addEventListener('input', limpiar);
+    campo.addEventListener('invalid', function () {
+      campo.setCustomValidity(campo.value ? 'Solo números, máximo 10 dígitos.' : 'Ingrese su número de documento.');
+    });
+    limpiar();
+  })();
+</script>
 {% endblock %}

@@ -748,24 +748,28 @@ def index():
     return render_template("index.html", statute_available=STATUTE_PDF.exists())
 
 
+MEMBER_DOCUMENT_RE = re.compile(r"[0-9]{1,10}")
+
+
 @app.route("/validar", methods=["POST"])
 def validate_member():
-    cedula = normalize_cedula(request.form.get("cedula"))
+    cedula_raw = (request.form.get("cedula") or "").strip()
+    cedula = normalize_cedula(cedula_raw)
     fecha_expedicion = normalize_fecha_expedicion(request.form.get("fecha_expedicion"))
     consent = request.form.get("consent") == "on"
 
-    if not cedula:
+    if not cedula_raw:
         flash("Ingrese su número de documento.", "error")
+        return redirect(url_for("index"))
+    # Misma regla que el formulario: solo dígitos, máximo 10.
+    if not MEMBER_DOCUMENT_RE.fullmatch(cedula_raw):
+        flash("El número de documento solo admite números, máximo 10 dígitos.", "error")
         return redirect(url_for("index"))
     if not fecha_expedicion:
         flash("Ingrese una fecha de expedición válida.", "error")
         return redirect(url_for("index"))
     if not consent:
         flash("Debe autorizar el tratamiento de datos personales para continuar.", "error")
-        return redirect(url_for("index"))
-
-    if len(cedula) > 15:
-        flash("Ingrese un número de documento válido.", "error")
         return redirect(url_for("index"))
 
     ip = client_ip()
